@@ -1,0 +1,437 @@
+:root {
+  --bg: #0f1115;
+  --panel: #151823;
+  --panel-2: #10131b;
+  --text: #e6e6e6;
+  --muted: #a3a7b3;
+  --accent: #5b8cff;
+  --ok: #52c41a;
+  --warn: #fadb14;
+  --danger: #ff4d4f;
+  --grid-gap: 6px;
+  --cell: 56px; /* 与脚本 CELL_SIZE 对齐 */
+  --board-width: calc(var(--cell) * 22 + var(--grid-gap) * 21 + 18px);
+  --board-height: calc(var(--cell) * 18 + var(--grid-gap) * 17 + 18px);
+  --radius: 10px;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: linear-gradient(180deg, #0d0f15, #0b0e14 60%, #090c12);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+.app {
+  display: grid;
+  grid-template-columns: var(--board-width) 420px;
+  gap: 14px;
+  padding: 16px;
+  width: calc(var(--board-width) + 420px + 14px);
+  max-width: none;
+  margin: 0 auto;
+  justify-content: center;
+}
+
+.left {
+  position: relative;
+  min-width: var(--board-width);
+  max-width: var(--board-width);
+  min-height: var(--board-height);
+  max-height: var(--board-height);
+  background: transparent;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+}
+
+.left.dragging { cursor: grabbing; }
+
+.board {
+  position: relative; /* largeOverlay 依赖相对定位 */
+  display: grid;
+  /* 行列由脚本动态设置为 18x22 */
+  gap: var(--grid-gap);
+  background: #0c0f15;
+  padding: 8px;
+  border-radius: var(--radius);
+  border: 1px solid #1b2030;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25) inset;
+  transform-origin: center center;
+  transform: scale(var(--cam-scale, 1)) translate3d(var(--cam-tx, 0px), var(--cam-ty, 0px), 0);
+}
+
+.board.shake {
+  animation: boardShake 0.22s ease-in-out;
+}
+
+@keyframes boardShake {
+  0% { transform: scale(var(--cam-scale, 1)) translate3d(calc(var(--cam-tx, 0px) + 2px), calc(var(--cam-ty, 0px) + 0px), 0); }
+  25% { transform: scale(var(--cam-scale, 1)) translate3d(calc(var(--cam-tx, 0px) - 2px), calc(var(--cam-ty, 0px) + 1px), 0); }
+  50% { transform: scale(var(--cam-scale, 1)) translate3d(calc(var(--cam-tx, 0px) + 2px), calc(var(--cam-ty, 0px) - 1px), 0); }
+  75% { transform: scale(var(--cam-scale, 1)) translate3d(calc(var(--cam-tx, 0px) - 1px), calc(var(--cam-ty, 0px) + 2px), 0); }
+  100% { transform: scale(var(--cam-scale, 1)) translate3d(var(--cam-tx, 0px), var(--cam-ty, 0px), 0); }
+}
+
+.cell {
+  position: relative;
+  width: var(--cell);
+  height: var(--cell);
+  background: #141a26;
+  border-radius: 8px;
+  border: 1px solid #1e2536;
+  transition: background .12s ease, transform .12s ease, box-shadow .12s ease, opacity .12s ease;
+  overflow: hidden;
+}
+.cell .coord {
+  position: absolute;
+  left: 6px;
+  top: 4px;
+  font-size: 11px;
+  color: var(--muted);
+  opacity: .6;
+}
+.cell.highlight-move { outline: 2px dashed #7cb305; outline-offset: -3px; }
+.cell.highlight-skill { outline: 2px solid #40a9ff; outline-offset: -3px; }
+.cell.highlight-skill-target { outline: 2px solid #ff7875; outline-offset: -3px; }
+.cell.pulse { box-shadow: 0 0 0 3px rgba(255,255,0,0.25) inset; }
+
+/* 右下 void 与掩体 cover 样式 */
+.cell.void {
+  background: repeating-linear-gradient(45deg, #0b0e14, #0b0e14 8px, #0a0d13 8px, #0a0d13 16px);
+  border-color: #121621;
+  opacity: 0.45;
+  pointer-events: none;
+}
+.cell.cover {
+  background: #1a2030;
+  border-color: #2a3756;
+  box-shadow: 0 0 0 2px rgba(90,120,180,0.18) inset;
+  pointer-events: none; /* 掩体不可进入 */
+}
+
+/* 1x1 单位：放在 cell 内，绝对定位铺满 cell */
+.unit {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: 1fr auto auto;
+  place-items: center;
+  color: #fff;
+  font-size: 12px;
+  text-align: center;
+  padding: 4px;
+}
+.unit.player { background: rgba(91,140,255,0.08); border: 1px solid rgba(91,140,255,0.3); }
+.unit.enemy  { background: rgba(255,77,79,0.08); border: 1px solid rgba(255,77,79,0.3); }
+
+.hpbar, .spbar { width: 90%; height: 10px; background: #0e121b; border-radius: 99px; overflow: hidden; border: 1px solid #1c2334; margin: 2px 0; }
+.hpfill { height: 100%; background: linear-gradient(90deg, #ff7875, #ff4d4f); }
+.spfill { height: 100%; background: linear-gradient(90deg, #36cfc9, #13c2c2); }
+
+/* 2x2 大单位（如 Tusk）绝对定位覆盖层：不参与 Grid 排版 */
+.largeOverlay {
+  position: absolute;
+  background: rgba(255,77,79,0.08);
+  border: 1px solid rgba(255,77,79,0.35);
+  border-radius: 10px;
+  color: #e9eefc;
+  display: grid;
+  grid-template-rows: auto auto auto;
+  place-items: center;
+  padding: 6px 8px;
+  pointer-events: none; /* 允许点击穿透到下方格子与单位 */
+  z-index: 50;
+}
+.largeOverlay.player {
+  background: rgba(91,140,255,0.08);
+  border-color: rgba(91,140,255,0.35);
+}
+.largeOverlay .title { font-weight: 600; }
+.largeOverlay .hpbar, .largeOverlay .spbar { width: 88%; }
+
+.cameraControls {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 1200;
+}
+
+.cameraControls button {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(17,24,36,0.7);
+  color: #dbe7ff;
+  font-size: 18px;
+  cursor: pointer;
+  transition: background .15s ease, transform .15s ease;
+  backdrop-filter: blur(4px);
+}
+
+.cameraControls button:hover { background: rgba(41,58,85,0.75); transform: translateY(-1px); }
+.cameraControls button:active { transform: scale(0.94); }
+
+.introDialog {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(6, 8, 12, 0.65);
+  z-index: 5000;
+  backdrop-filter: blur(4px);
+}
+
+.introDialog .box { position: absolute; left: 50%; transform: translateX(-50%); bottom: 32px; width: min(960px, 86vw);
+  background: rgba(13, 18, 28, 0.92);
+  border: 1px solid rgba(91, 140, 255, 0.35);
+  border-radius: 12px;
+  padding: 28px 36px;
+  max-width: 480px;
+  font-size: 18px;
+  line-height: 1.6;
+  color: #f0f3ff;
+  box-shadow: 0 20px 48px rgba(0,0,0,0.45);
+  text-align: center;
+  position: relative;
+}
+
+.introDialog .hint {
+  margin-top: 18px;
+  font-size: 14px;
+  color: rgba(219, 231, 255, 0.7);
+}
+
+.roundBanner { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 4000; opacity: 0; transform: translateY(12px) scale(0.98); transition: opacity .85s ease, transform .85s ease; }
+
+.roundBanner.show { opacity: 1; transform: translateY(0) scale(1); }
+
+.roundBanner .text {
+  font-size: 96px;
+  font-weight: 800;
+  letter-spacing: 12px;
+  color: rgba(255,255,255,1);
+  text-shadow: 0 0 2px rgba(0,0,0,0.75), 0 0 28px rgba(91,140,255,0.60), 0 0 64px rgba(91,140,255,0.40);
+}
+
+.right {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 14px;
+}
+.panel {
+  background: var(--panel);
+  border: 1px solid #22293b;
+  border-radius: var(--radius);
+  padding: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.25);
+}
+.logPanel { background: var(--panel-2); }
+
+.steps { color: var(--muted); margin-bottom: 8px; }
+.section { margin-top: 10px; }
+.section h3 { margin: 6px 0 8px; font-size: 14px; color: #b6bdd1; }
+
+.partyRow { font-size: 13px; padding: 3px 0; color: #d7d9e0; }
+.partyRow.small { font-size: 12px; color: #aeb6c9; }
+
+.skillPool {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  max-height: 360px;
+  overflow: auto;
+  padding-right: 4px;
+}
+.skillCard {
+  background: #131926;
+  border: 1px solid #1d2436;
+  border-left: 6px solid #52c41a;
+  border-radius: 8px;
+  padding: 8px;
+  cursor: pointer;
+  display: block;
+  transition: transform .12s ease, border-color .12s ease, background .12s ease;
+}
+.skillCard.green { border-left-color: #52c41a; }
+.skillCard.red { border-left-color: #ff7875; }
+.skillCard.blue { border-left: 6px solid #1890ff !important; }
+.skillCard:hover { transform: translateY(-1px); background: #141c2b; }
+.skillCard.disabled { opacity: .6; filter: grayscale(0.1); cursor: not-allowed; }
+
+.skillCard .discardBtn {
+  background: #24304a;
+  color: #dbe5ff;
+  border: 1px solid #324064;
+  border-radius: 6px;
+}
+.skillCard .discardBtn:hover { background: #2a3857; }
+
+.actions { margin-top: 10px; }
+.actions button {
+  width: 100%;
+  padding: 10px 14px;
+  font-weight: 700;
+  font-size: 14px;
+  color: #fff;
+  background: linear-gradient(90deg, #5b8cff, #6e74ff);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(107,141,255,.25);
+}
+.actions button:hover { filter: brightness(1.05); }
+
+.log {
+  height: 360px;
+  overflow: auto;
+  font-size: 13px;
+  line-height: 1.4;
+  padding: 8px;
+  background: #0d1320;
+  border-radius: 8px;
+  border: 1px solid #1b2234;
+  display: flex;
+  flex-direction: column-reverse; /* 最新在上 */
+}
+.log > div { padding: 3px 0; color: #d8def0; }
+
+/* 胜利弹窗 */
+.modal.hidden { display: none; }
+.modal {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0,0,0,0.35);
+  z-index: 9999;
+}
+.modal-content {
+  width: min(520px, 92vw);
+  background: #121726;
+  border: 1px solid #1f2840;
+  border-radius: 12px;
+  padding: 16px;
+  color: #e6e9f4;
+}
+.modal-actions { margin-top: 12px; display: flex; justify-content: flex-end; }
+.modal-actions button {
+  background: #2b3a5f;
+  color: #dfe7ff;
+  border: 1px solid #394a75;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.modal-actions button:hover { filter: brightness(1.06); }
+
+/* 滚动条微样式（WebKit） */
+.skillPool::-webkit-scrollbar,
+.log::-webkit-scrollbar { width: 8px; }
+.skillPool::-webkit-scrollbar-thumb,
+.log::-webkit-scrollbar-thumb { background: #2a3350; border-radius: 6px; }
+/* Arknights-style speaker tag */
+.introDialog .box { padding: 18px 24px 20px 24px; }
+.introDialog .box .speaker {
+  position: absolute;
+  left: 16px;
+  top: -14px;
+  padding: 4px 10px;
+  background: linear-gradient(90deg, #2b3040, #1a1f2d);
+  border: 1px solid #39415a;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #e8eefc;
+  letter-spacing: .5px;
+  box-shadow: 0 6px 16px rgba(0,0,0,.35);
+}
+.introDialog .box .content { font-size: 16px; text-align: left; }
+
+/* Haz subtle red glow + stronger glow on comeback */
+.unit.haz-glow {
+  box-shadow: 0 0 10px rgba(255, 88, 88, 0.35), inset 0 0 8px rgba(255,0,0,0.18);
+}
+.unit.haz-glow.comeback {
+  box-shadow: 0 0 18px rgba(255, 78, 78, 0.7), 0 0 36px rgba(255, 40, 40, 0.35), inset 0 0 12px rgba(255,0,0,0.28);
+  position: relative;
+}
+.unit.haz-glow.comeback::before,
+.unit.haz-glow.comeback::after {
+  content: "";
+  position: absolute;
+  bottom: 6px;
+  width: 3px;
+  height: 14px;
+  background: radial-gradient(circle, rgba(255,140,140,0.9) 0%, rgba(255,140,140,0.0) 70%);
+  filter: blur(1px);
+  animation: hazRise 1.3s linear infinite;
+  opacity: 0.8;
+}
+.unit.haz-glow.comeback::before { left: 35%; animation-delay: 0.0s; }
+.unit.haz-glow.comeback::after  { left: 62%; animation-delay: 0.5s; }
+
+@keyframes hazRise {
+  0%   { transform: translateY(8px) scale(0.8); opacity: 0; }
+  40%  { opacity: 0.9; }
+  100% { transform: translateY(-18px) scale(1.0); opacity: 0; }
+}
+
+/* Intro dialog centering & size fix */
+.introDialog {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 5000;
+}
+.introDialog .box {
+  position: relative;
+  width: min(1100px, 92vw);
+  min-height: 150px; /* 拉长往下 */
+  margin: 0 auto 28px auto;
+  pointer-events: auto;
+}
+.introDialog .content {
+  font-size: 16px;
+  line-height: 1.6;
+  padding-top: 6px;
+}
+/* Haz 名字小牌位于对话框左上角 */
+.introDialog .speaker {
+  position: absolute;
+  left: 16px;
+  top: -16px;
+}
+
+/* Force center-bottom for intro dialog box; reset legacy props */
+.introDialog .box {
+  position: relative !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+  margin: 0 auto 28px auto !important;
+}
+
+/* Center-bottom intro dialog box (absolute) */
+.introDialog { align-items: flex-end !important; justify-content: center !important; }
+.introDialog .box {
+  position: fixed !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  bottom: 32px !important;
+  width: min(1100px, 92vw) !important;
+  min-height: 150px !important;
+  margin: 0 auto !important;
+}
+.introDialog .speaker { left: 16px !important; top: -16px !important; }
