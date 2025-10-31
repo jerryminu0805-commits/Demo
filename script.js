@@ -44,6 +44,7 @@ function aiLog(u,msg){ if(DEBUG_AI) appendLog(`[AI] ${u.name}: ${msg}`); }
 const inventory = { pistol: false };
 
 let roundsPassed = 0;
+let playerBonusStepsNextTurn = 0;
 function computeBaseSteps(){ return Math.min(BASE_START_STEPS + roundsPassed, MAX_STEPS); }
 
 let playerSteps = computeBaseSteps();
@@ -152,6 +153,8 @@ function createUnit(id, name, side, level, r, c, maxHp, maxSp, restoreOnZeroPct,
       bleed: 0,
       hazBleedTurns: 0,
       recoverStacks: 0,          // “恢复”Buff 层数（每大回合开始消耗一层，+5HP）
+      jixueStacks: 0,            // “鸡血”Buff 层数（下一次攻击伤害x2）
+      dependStacks: 0,           // “依赖”Buff 层数（下一次攻击真实伤害，结算后清空自身SP）
     },
     dmgDone: 0,
     skillPool: [],
@@ -358,6 +361,7 @@ function injectFXStyles(){
   .skillCard.green { border-left-color:#73d13d; }
   .skillCard.red   { border-left-color:#ff4d4f; }
   .skillCard.blue  { border-left-color:#40a9ff; }
+  .skillCard.orange{ border-left-color:#fa8c16; }
   .skillCard.pink  { border-left-color:#eb2f96; }
   .skillCard.white { border-left-color:#d9d9d9; }
   .skillCard.disabled { opacity: 0.55; cursor: not-allowed; }
@@ -795,38 +799,57 @@ function calcOutgoingDamage(attacker, baseDmg, target, skillName){
 function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
   const u = units[id]; if(!u || u.hp<=0) return;
 
-  if(sourceId){
-    const src = units[sourceId];
-    if(src && src.side === u.side){ appendLog(`友伤无效：${src.name} -> ${u.name}`); return; }
+  const source = sourceId ? units[sourceId] : null;
+  const buffStage = opts.buffStage || 'final';
+  let trueDamage = !!opts.trueDamage;
+
+  if(source){
+    if(source.side === u.side){ appendLog(`友伤无效：${source.name} -> ${u.name}`); return; }
+
+    if(!opts.ignoreJixue && buffStage==='final' && source.status && source.status.jixueStacks>0){
+      if(!source._jixueActivated){
+        appendLog(`${source.name} 的“鸡血”触发：伤害 x2`);
+        source._jixueActivated = true;
+      }
+      hpDmg = Math.round(hpDmg * 2);
+    }
+
+    if(!opts.ignoreDepend && buffStage==='final' && source.status && source.status.dependStacks>0){
+      if(!source._dependUnleash){
+        appendLog(`${source.name} 的“依赖”触发：造成真实伤害`);
+        source._dependUnleash = true;
+      }
+      trueDamage = true;
+    }
   }
+
   // 掩体：远程（距离>1）才被掩体免疫
-  if(sourceId){
-    const src = units[sourceId];
-    if(src && isCoverCell(u.r, u.c) && mdist(src, u) > 1 && !opts.ignoreCover){
+  if(source && !trueDamage){
+    if(isCoverCell(u.r, u.c) && mdist(source, u) > 1 && !opts.ignoreCover){
       appendLog(`${u.name} 处于掩体内，抵御了远距离伤害`);
       return;
     }
   }
   // 力挽狂澜减伤
-  if(u.id==='haz' && u._comeback){
+  if(u.id==='haz' && u._comeback && !trueDamage){
     hpDmg = Math.round(hpDmg * 0.9);
     spDmg = Math.round(spDmg * 0.9);
   }
 
   // 姿态减伤（优先于 Tusk 固有护甲）
-  if(u._stanceType && u._stanceTurns>0 && u._stanceDmgRed>0){
+  if(!trueDamage && u._stanceType && u._stanceTurns>0 && u._stanceDmgRed>0){
     hpDmg = Math.round(hpDmg * (1 - u._stanceDmgRed));
     spDmg = Math.round(spDmg * (1 - u._stanceDmgRed));
   } else {
     // Tusk 固有“骨墙”（若未进入姿态）
-    if(u.id==='tusk' && !opts.ignoreTuskWall){
+    if(!trueDamage && u.id==='tusk' && !opts.ignoreTuskWall){
       hpDmg = Math.round(hpDmg * 0.7);
       spDmg = Math.round(spDmg * 0.7);
     }
   }
 
   // Tusk 替 Haz 承伤
-  if(u.id==='haz'){
+  if(!trueDamage && u.id==='haz'){
     const tusk = units['tusk'];
     if(tusk && tusk.hp>0){
       const redHp = Math.round(hpDmg * 0.5);
@@ -838,11 +861,11 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
     }
   }
 
-  if(u.id==='haz' && u.chainShieldTurns>0){
+  if(!trueDamage && u.id==='haz' && u.chainShieldTurns>0){
     hpDmg = Math.round(hpDmg * 0.6);
     spDmg = Math.round(spDmg * 0.6);
   }
-  if(u.passives.includes('toughBody') && !opts.ignoreToughBody){
+  if(!trueDamage && u.passives.includes('toughBody') && !opts.ignoreToughBody){
     hpDmg = Math.round(hpDmg * 0.75);
   }
 
@@ -943,6 +966,15 @@ function adoraZap(u,target){
   appendLog(`${target.name} 下回合 -1 步`);
   u.dmgDone += 10; unitActed(u);
 }
+function adoraCheer(u, aim){
+  const t = getUnitAt(aim.r, aim.c);
+  if(!t || t.side!==u.side){ appendLog('加油哇！ 目标无效'); return; }
+  if(t.status.jixueStacks>0){ appendLog(`${t.name} 已经处于“鸡血”状态`); return; }
+  t.status.jixueStacks = 1;
+  pulseCell(t.r,t.c);
+  appendLog(`${u.name} 对 ${t.name} 使用 加油哇！：赋予 1 层“鸡血”`);
+  unitActed(u);
+}
 function darioClaw(u,target){
   if(!target || target.side===u.side){ appendLog('机械爪击 目标无效'); return; }
   const dmg = calcOutgoingDamage(u,15,target,'机械爪击');
@@ -991,6 +1023,21 @@ function darioPull(u, targetOrDesc){
   appendLog(`${target.name} SP -${reduced}`);
   u.dmgDone += dmg; unitActed(u);
 }
+function darioSweetAfterBitter(u){
+  playerBonusStepsNextTurn += 4;
+  appendLog(`${u.name} 使用 先苦后甜：下个玩家回合 +4 步`);
+  unitActed(u);
+}
+function adoraDepend(u, aim){
+  const t = getUnitAt(aim.r, aim.c);
+  if(!t || t.side!==u.side){ appendLog('只能靠你了。。 目标无效'); return; }
+  if(t.status.dependStacks>0){ appendLog(`${t.name} 已经处于“依赖”状态`); return; }
+  damageUnit(u.id, 25, 0, `${u.name} 牺牲自身 25 HP`, null, {trueDamage:true, ignoreJixue:true, ignoreDepend:true});
+  t.status.dependStacks = 1;
+  pulseCell(t.r,t.c);
+  appendLog(`${u.name} 对 ${t.name} 施加“依赖”：下一次攻击造成真实伤害并清空自身SP`);
+  unitActed(u);
+}
 function karmaObeyMove(u, payload){
   const dest = payload && payload.moveTo; if(!dest){ appendLog('无效的目的地'); return; }
   cameraFocusOnCell(dest.r, dest.c); showTrail(u.r,u.c,dest.r,dest.c);
@@ -1014,7 +1061,36 @@ function karmaGrip(u,target){
   }
   unitActed(u);
 }
-function unitActed(u){ u.actionsThisTurn = Math.max(0, (u.actionsThisTurn||0)+1); }
+function unitActed(u){
+  if(!u) return;
+  u.actionsThisTurn = Math.max(0, (u.actionsThisTurn||0)+1);
+
+  if(u._jixueActivated){
+    if(u.status && u.status.jixueStacks>0){
+      u.status.jixueStacks = Math.max(0, u.status.jixueStacks - 1);
+      appendLog(`${u.name} 的“鸡血”消散`);
+    }
+    u._jixueActivated = false;
+  }
+
+  if(u._dependUnleash){
+    if(u.status && u.status.dependStacks>0){
+      u.status.dependStacks = 0;
+      const beforeSp = u.sp;
+      u.sp = 0;
+      u._spBroken = (u.sp<=0);
+      if(beforeSp>0){
+        appendLog(`${u.name} 的“依赖”消散：SP 清空`);
+        showDamageFloat(u.r,u.c,0,beforeSp);
+      } else {
+        appendLog(`${u.name} 的“依赖”消散：SP 已为 0`);
+      }
+      handleSpCrashIfNeeded(u);
+      renderAll();
+    }
+    u._dependUnleash = false;
+  }
+}
 function karmaPunch(u,target){
   if(!target || target.side===u.side){ appendLog('沙包大的拳头 目标无效'); return; }
   const dmg = calcOutgoingDamage(u, 15, target, '沙包大的拳头');
@@ -1599,6 +1675,18 @@ function buildSkillFactoriesForUnit(u){
         (uu,aim)=> adoraFieldMedic(uu,aim),
         {aoe:false},
         {cellTargeting:true, castMs:900}
+      )},
+      { key:'加油哇！', prob:0.20, cond:()=>u.level>=25, make:()=> skill('加油哇！',4,'orange','以自身为中心5x5内选择友方：赋予 1 层“鸡血”（下一次攻击伤害翻倍，使用后移除）',
+        (uu)=> range_square_n(uu,2).filter(p=>{ const tu=getUnitAt(p.r,p.c); return tu && tu.side===uu.side; }),
+        (uu,aim)=> adoraCheer(uu,aim),
+        {aoe:false},
+        {cellTargeting:true, castMs:900}
+      )},
+      { key:'只能靠你了。。', prob:0.15, cond:()=>u.level>=35, make:()=> skill('只能靠你了。。',4,'orange','牺牲25HP；以自身为中心5格范围友方，赋予1层“依赖”（下一次攻击造成真实伤害并清空自身SP）',
+        (uu)=> range_square_n(uu,5).filter(p=>{ const tu=getUnitAt(p.r,p.c); return tu && tu.side===uu.side; }),
+        (uu,aim)=> adoraDepend(uu,aim),
+        {aoe:false},
+        {cellTargeting:true, castMs:900}
       )}
     );
   } else if(u.id==='dario'){
@@ -1633,6 +1721,14 @@ function buildSkillFactoriesForUnit(u){
         (uu,desc)=> darioPull(uu,desc),
         {aoe:true},
         {castMs:1100}
+      )}
+    );
+    F.push(
+      { key:'先苦后甜', prob:0.15, cond:()=>u.level>=25 && !(u.skillPool||[]).some(s=>s && s.name==='先苦后甜'), make:()=> skill('先苦后甜',4,'orange','自我激励：下个玩家回合额外 +4 步（此卡不可重复存在）',
+        (uu)=>[{r:uu.r,c:uu.c,dir:uu.facing}],
+        (uu)=> darioSweetAfterBitter(uu),
+        {},
+        {castMs:700}
       )}
     );
   } else if(u.id==='karma'){
@@ -2205,6 +2301,8 @@ function summarizeNegatives(u){
   if(u.status.bleed>0) parts.push(`流血x${u.status.bleed}`);
   if(u.status.hazBleedTurns>0) parts.push(`Haz流血x${u.status.hazBleedTurns}`);
   if(u.status.recoverStacks>0) parts.push(`恢复x${u.status.recoverStacks}`);
+  if(u.status.jixueStacks>0) parts.push(`鸡血x${u.status.jixueStacks}`);
+  if(u.status.dependStacks>0) parts.push(`依赖x${u.status.dependStacks}`);
   if(u._spBroken) parts.push(`SP崩溃`);
   if(hazMarkedTargetId && u.id === hazMarkedTargetId) parts.push('猎杀标记');
   if(u._stanceType && u._stanceTurns>0){
@@ -2614,6 +2712,12 @@ function finishEnemyTurn(){
   setTimeout(()=>{
     currentSide='player';
     playerSteps=computeBaseSteps();
+    if(playerBonusStepsNextTurn>0){
+      const bonus = playerBonusStepsNextTurn;
+      playerSteps += bonus;
+      appendLog(`先苦后甜：玩家额外 +${bonus} 步`);
+      playerBonusStepsNextTurn = 0;
+    }
     appendLog('敌方回合结束，玩家回合开始');
     applyLevelSuppression();
     applyParalysisAtTurnStart('player');
