@@ -1028,7 +1028,7 @@ function darioSweetAfterBitter(u){
   appendLog(`${u.name} 使用 先苦后甜：下个玩家回合 +4 步`);
   unitActed(u);
 }
-function darioDepend(u, aim){
+function adoraDepend(u, aim){
   const t = getUnitAt(aim.r, aim.c);
   if(!t || t.side!==u.side){ appendLog('只能靠你了。。 目标无效'); return; }
   if(t.status.dependStacks>0){ appendLog(`${t.name} 已经处于“依赖”状态`); return; }
@@ -1681,6 +1681,12 @@ function buildSkillFactoriesForUnit(u){
         (uu,aim)=> adoraCheer(uu,aim),
         {aoe:false},
         {cellTargeting:true, castMs:900}
+      )},
+      { key:'只能靠你了。。', prob:0.15, cond:()=>u.level>=35, make:()=> skill('只能靠你了。。',4,'orange','牺牲25HP；以自身为中心5格范围友方，赋予1层“依赖”（下一次攻击造成真实伤害并清空自身SP）',
+        (uu)=> range_square_n(uu,5).filter(p=>{ const tu=getUnitAt(p.r,p.c); return tu && tu.side===uu.side; }),
+        (uu,aim)=> adoraDepend(uu,aim),
+        {aoe:false},
+        {cellTargeting:true, castMs:900}
       )}
     );
   } else if(u.id==='dario'){
@@ -1723,12 +1729,6 @@ function buildSkillFactoriesForUnit(u){
         (uu)=> darioSweetAfterBitter(uu),
         {},
         {castMs:700}
-      )},
-      { key:'只能靠你了。。', prob:0.15, cond:()=>u.level>=35, make:()=> skill('只能靠你了。。',4,'orange','牺牲25HP；以自身为中心5格范围友方，赋予1层“依赖”（下一次攻击造成真实伤害并清空自身SP）',
-        (uu)=> range_square_n(uu,5).filter(p=>{ const tu=getUnitAt(p.r,p.c); return tu && tu.side===uu.side; }),
-        (uu,aim)=> darioDepend(uu,aim),
-        {aoe:false},
-        {cellTargeting:true, castMs:900}
       )}
     );
   } else if(u.id==='karma'){
