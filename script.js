@@ -95,6 +95,9 @@ const cameraState = {
 let godsWillArmed = false;
 let godsWillMenuEl = null;
 let godsWillBtn = null;
+let godsWillUnlocked = false;
+let godsWillLockedOut = false;
+const GODS_WILL_PASSWORD = '745876';
 
 // Fullscreen
 let fsBtn = null;
@@ -767,6 +770,13 @@ function injectFXStyles(){
     font-weight: 700; letter-spacing: 0.5px;
   }
   #godsWillBtn.armed { background: #722ed1; }
+  #godsWillBtn.locked,
+  #godsWillBtn:disabled {
+    background: #1f1f1f;
+    color: rgba(255,255,255,0.45);
+    cursor: not-allowed;
+    box-shadow: none;
+  }
 
   /* GOD'S WILL 菜单 */
   .gods-menu {
@@ -4426,7 +4436,33 @@ document.addEventListener('DOMContentLoaded', ()=>{
   godsWillBtn.id = 'godsWillBtn';
   godsWillBtn.textContent = "GOD'S WILL";
   godsWillBtn.title = '调试：点击后选择任意单位 → 杀死或留 1 HP（ESC 取消）';
-  godsWillBtn.onclick = (e)=>{ e.stopPropagation(); if(interactionLocked) return; toggleGodsWill(); };
+  godsWillBtn.onclick = (e)=>{
+    e.stopPropagation();
+    if(interactionLocked || godsWillLockedOut) return;
+    if(!godsWillUnlocked){
+      const answer = prompt('请输入 GOD\'S WILL 密码');
+      const normalized = (answer ?? '').trim();
+      if(normalized === GODS_WILL_PASSWORD){
+        godsWillUnlocked = true;
+        if(godsWillBtn){
+          godsWillBtn.disabled = false;
+          godsWillBtn.classList.remove('locked');
+          godsWillBtn.title = 'GOD’S WILL：点击后选择任意单位 → 杀死或留 1 HP（ESC 取消）';
+        }
+        appendLog('GOD’S WILL：密码验证通过，功能解锁');
+      } else {
+        godsWillLockedOut = true;
+        if(godsWillBtn){
+          godsWillBtn.disabled = true;
+          godsWillBtn.classList.add('locked');
+          godsWillBtn.title = 'GOD’S WILL：密码错误，功能已锁定';
+        }
+        appendLog('GOD’S WILL：密码错误，按钮失效');
+        return;
+      }
+    }
+    toggleGodsWill();
+  };
   document.body.appendChild(godsWillBtn);
 
   // Full Screen 按钮
