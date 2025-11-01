@@ -172,6 +172,7 @@ function createUnit(id, name, side, level, r, c, maxHp, maxSp, restoreOnZeroPct,
     _staggerStacks: 0,
     pullImmune: !!extra.pullImmune,
     _spBroken: false,
+    _spCrashVuln: false,
     spPendingRestore: null,
     _comeback: false,
 
@@ -1383,6 +1384,21 @@ function showStatusFloat(target,label,{type='buff', delta=null, offsetY=-72}={})
   }
   return spawnFloatText(target,text,{className:`status ${type}`, offsetY, zOffset:3});
 }
+function refreshSpCrashVulnerability(u){
+  if(!u) return;
+  const stunnedStacks = u.status ? (u.status.stunned || 0) : 0;
+  if(u._spCrashVuln && stunnedStacks <= 0 && u.sp > 0){
+    u._spCrashVuln = false;
+    appendLog(`${u.name} 的 SP 崩溃易伤解除`);
+  }
+}
+function syncSpBroken(u){
+  if(!u) return;
+  u._spBroken = (u.sp <= 0);
+  if(!u._spBroken){
+    refreshSpCrashVulnerability(u);
+  }
+}
 function updateStatusStacks(u,key,next,{label,type='buff', offsetY=-72}={}){
   if(!u || !u.status) return next;
   const prev = u.status[key] || 0;
@@ -1391,6 +1407,9 @@ function updateStatusStacks(u,key,next,{label,type='buff', offsetY=-72}={}){
   const diff = value - prev;
   if(diff !== 0){
     showStatusFloat(u,label,{type, delta: diff, offsetY});
+  }
+  if(key === 'stunned'){
+    refreshSpCrashVulnerability(u);
   }
   return value;
 }
@@ -1706,6 +1725,11 @@ function handleSpCrashIfNeeded(u){
   if(!u || u.hp<=0) return;
   if(u.sp <= 0 && !u._spBroken){
     u._spBroken = true;
+    if(!u._spCrashVuln){
+      u._spCrashVuln = true;
+      showStatusFloat(u,'SP崩溃易伤',{type:'debuff', offsetY:-88});
+      appendLog(`${u.name} 处于 SP 崩溃易伤：受到的伤害翻倍，直到眩晕解除且 SP 恢复`);
+    }
     applyStunOrStack(u, 1, {bypass:true, reason:'SP崩溃'});
     if(u.side==='player'){ playerSteps = Math.max(0, playerSteps - 1); } else { enemySteps = Math.max(0, enemySteps - 1); }
     const restored = Math.floor(u.maxSp * u.restoreOnZeroPct);
@@ -1713,6 +1737,9 @@ function handleSpCrashIfNeeded(u){
     appendLog(`${u.name} 的 SP 崩溃：下个己方回合自动恢复至 ${u.spPendingRestore}`);
   }
   if(u.sp > 0 && u._spBroken) u._spBroken = false;
+  if(u.sp > 0){
+    refreshSpCrashVulnerability(u);
+  }
 }
 function applySpDamage(targetOrId, amount, {sourceId=null, reason=null}={}){
   const u = typeof targetOrId === 'string' ? units[targetOrId] : targetOrId;
@@ -1841,6 +1868,12 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
   }
   if(!trueDamage && u.passives.includes('toughBody') && !opts.ignoreToughBody){
     hpDmg = Math.round(hpDmg * 0.75);
+  }
+
+  if(u._spCrashVuln && (hpDmg>0 || spDmg>0)){
+    hpDmg = Math.round(hpDmg * 2);
+    spDmg = Math.round(spDmg * 2);
+    appendLog(`${u.name} 因 SP 崩溃眩晕承受双倍伤害！`);
   }
 
   const prevHp = u.hp;
@@ -2059,7 +2092,7 @@ function karmaObeyMove(u, payload){
   u.r = dest.r; u.c = dest.c; pulseCell(u.r,u.c);
   showSkillFx('karma:都听你的',{target:u});
   if(u.consecAttacks > 0){ appendLog(`${u.name} 的连击被打断（移动）`); u.consecAttacks = 0; }
-  u.sp = Math.min(u.maxSp, u.sp + 5); u._spBroken = (u.sp<=0); showGainFloat(u,0,5);
+  u.sp = Math.min(u.maxSp, u.sp + 5); syncSpBroken(u); showGainFloat(u,0,5);
   unitActed(u);
 }
 function karmaGrip(u,target){
@@ -2103,7 +2136,7 @@ function unitActed(u){
         updateStatusStacks(u,'dependStacks', 0, {label:'依赖', type:'buff'});
         const beforeSp = u.sp;
         u.sp = 0;
-        u._spBroken = (u.sp<=0);
+        syncSpBroken(u);
         if(beforeSp>0){
           appendLog(`${u.name} 的“依赖”消散：SP 清空`);
           showDamageFloat(u,0,beforeSp);
@@ -2164,7 +2197,7 @@ async function katz_RepeatedWhip(u, desc){
     // 每轮 +5SP
     const beforeSP = u.sp;
     u.sp = Math.min(u.maxSp, u.sp + 5);
-    u._spBroken = (u.sp<=0);
+    syncSpBroken(u);
     showGainFloat(u,0,u.sp-beforeSP);
     totalHits += hits1 + hits2;
   }
@@ -2196,7 +2229,7 @@ function adoraFieldMedic(u, aim){
   const hpBefore = t.hp, spBefore = t.sp;
   t.hp = Math.min(t.maxHp, t.hp + 20);
   t.sp = Math.min(t.maxSp, t.sp + 15);
-  t._spBroken = (t.sp<=0);
+  syncSpBroken(t);
   const stacks = addStatusStacks(t,'recoverStacks',1,{label:'恢复', type:'buff'});
   appendLog(`${u.name} 对 ${t.name} 使用 略懂的医术！：+20HP +15SP，并赋予“恢复”(${stacks})`);
   showGainFloat(t,t.hp-hpBefore,t.sp-spBefore);
@@ -2206,7 +2239,7 @@ function adoraFieldMedic(u, aim){
 // Karma：深呼吸（25级，白色）
 function karmaDeepBreath(u){
   const hpBefore = u.hp, spBefore = u.sp;
-  u.sp = u.maxSp; u._spBroken = (u.sp<=0);
+  u.sp = u.maxSp; syncSpBroken(u);
   u.hp = Math.min(u.maxHp, u.hp + 10);
   appendLog(`${u.name} 使用 深呼吸：SP回满，+10HP（被动+10%仅在手牌中未被使用时生效）`);
   showGainFloat(u,u.hp-hpBefore,u.sp-spBefore);
@@ -2222,7 +2255,7 @@ async function haz_HarpoonStab(u, target){
   const dmg = calcOutgoingDamage(u,20,target,'鱼叉穿刺');
   cameraFocusOnCell(target.r, target.c);
   damageUnit(target.id, dmg, 0, `${u.name} 鱼叉穿刺 命中 ${target.name}`, u.id,{skillFx:'haz:鱼叉穿刺'});
-  u.sp = Math.min(u.maxSp, u.sp + 10); u._spBroken = (u.sp<=0); showGainFloat(u,0,10);
+  u.sp = Math.min(u.maxSp, u.sp + 10); syncSpBroken(u); showGainFloat(u,0,10);
   if(!hazMarkedTargetId){ hazMarkedTargetId = target.id; appendLog(`猎杀标记：${target.name} 被标记，七海对其伤害 +15%`); }
   if(Math.random() < 0.4){
     const reduced = applySpDamage(target,5,{sourceId:u.id});
@@ -2275,7 +2308,7 @@ function haz_ChainShield(u){
     const v=units[id];
     if(v.team==='seven' && v.hp>0){
       v.sp = Math.min(v.maxSp, v.sp+5);
-      v._spBroken = (v.sp<=0);
+      syncSpBroken(v);
       showGainFloat(v,0,5);
       showSkillFx('haz:锁链缠绕·增益',{target:v});
     }
@@ -2369,7 +2402,7 @@ async function katz_Thrust(u,target){
   let dmg = calcOutgoingDamage(u,20,target,'矛刺');
   cameraFocusOnCell(target.r,target.c);
   damageUnit(target.id, dmg, 0, `${u.name} 矛刺 命中 ${target.name}`, u.id,{skillFx:'katz:矛刺'});
-  u.sp = Math.min(u.maxSp, u.sp+5); u._spBroken = (u.sp<=0); showGainFloat(u,0,5);
+  u.sp = Math.min(u.maxSp, u.sp+5); syncSpBroken(u); showGainFloat(u,0,5);
   u.dmgDone += dmg; unitActed(u);
 }
 async function katz_ChainWhip(u,desc){
@@ -2405,7 +2438,7 @@ async function katz_MustErase(u, desc){
     }
     if(hits>0){
       u.hp = Math.max(1, u.hp - 5); showDamageFloat(u,5,0);
-      u.sp = Math.min(u.maxSp, u.sp + 5); u._spBroken = (u.sp<=0); showGainFloat(u,0,5);
+      u.sp = Math.min(u.maxSp, u.sp + 5); syncSpBroken(u); showGainFloat(u,0,5);
       await stageMark(cells);
     }
   }
@@ -3444,6 +3477,7 @@ function summarizeNegatives(u){
   if(u.status.jixueStacks>0) parts.push(`鸡血x${u.status.jixueStacks}`);
   if(u.status.dependStacks>0) parts.push(`依赖x${u.status.dependStacks}`);
   if(u._spBroken) parts.push(`SP崩溃`);
+  if(u._spCrashVuln) parts.push('SP崩溃易伤');
   if(hazMarkedTargetId && u.id === hazMarkedTargetId) parts.push('猎杀标记');
   if(u._stanceType && u._stanceTurns>0){
     parts.push(u._stanceType==='defense' ? `防御姿态(${u._stanceTurns})` : `反伤姿态(${u._stanceTurns})`);
@@ -3717,9 +3751,9 @@ function processUnitsTurnStart(side){
   if(side==='enemy'){
     if(roundsPassed % 2 === 0){
       const haz = units['haz'];
-      if(haz && haz.hp>0){ haz.sp = Math.min(haz.maxSp, haz.sp+10); haz._spBroken = (haz.sp<=0); showGainFloat(haz,0,10); appendLog('队员们听令！Haz +10SP'); }
+      if(haz && haz.hp>0){ haz.sp = Math.min(haz.maxSp, haz.sp+10); syncSpBroken(haz); showGainFloat(haz,0,10); appendLog('队员们听令！Haz +10SP'); }
       for(const id in units){
-        const v=units[id]; if(v.team==='seven' && v.hp>0 && v.id!=='haz'){ v.sp = Math.min(v.maxSp, v.sp+5); v._spBroken=(v.sp<=0); showGainFloat(v,0,5); }
+        const v=units[id]; if(v.team==='seven' && v.hp>0 && v.id!=='haz'){ v.sp = Math.min(v.maxSp, v.sp+5); syncSpBroken(v); showGainFloat(v,0,5); }
       }
       appendLog('队员们听令！其他队员 +5SP');
     }
@@ -3756,7 +3790,7 @@ function processUnitsTurnStart(side){
       if(u._stanceSpPerTurn>0){
         const beforeSP = u.sp;
         u.sp = Math.min(u.maxSp, u.sp + u._stanceSpPerTurn);
-        u._spBroken = (u.sp<=0);
+        syncSpBroken(u);
         showGainFloat(u,0,u.sp-beforeSP);
         appendLog(`${u.name} 的${u._stanceType==='defense'?'防御':'反伤'}姿态：+${u._stanceSpPerTurn} SP`);
       }
@@ -3768,7 +3802,7 @@ function processUnitsTurnStart(side){
 
     if(u.spPendingRestore!=null){
       const val = Math.min(u.maxSp, u.spPendingRestore);
-      u.sp = val; u._spBroken = (u.sp<=0); u.spPendingRestore = null;
+      u.sp = val; syncSpBroken(u); u.spPendingRestore = null;
       appendLog(`${u.name} 的 SP 自动恢复至 ${val}`); showGainFloat(u,0,val);
       if(u.id==='haz'){
         const heal = Math.max(1, Math.floor(u.maxHp*0.05));
@@ -3800,7 +3834,7 @@ function processUnitsTurnStart(side){
     // 老的堡垒兼容（现在已由姿态系统取代）
     if(u.id==='tusk' && u._fortressTurns>0){
       u.sp = Math.min(u.maxSp, u.sp+10);
-      u._spBroken = (u.sp<=0);
+      syncSpBroken(u);
       showGainFloat(u,0,10);
       u._fortressTurns--;
     }
@@ -3815,7 +3849,7 @@ function processUnitsTurnEnd(side){
     if(u.id==='adora' && u.passives.includes('calmAnalysis')){
       if((u.actionsThisTurn||0)===0){
         u.sp = Math.min(u.maxSp, u.sp + 10);
-        u._spBroken = (u.sp<=0);
+        syncSpBroken(u);
         appendLog('Adora 冷静分析：+10SP'); showGainFloat(u,0,10);
       }
     }
@@ -3825,7 +3859,8 @@ function processUnitsTurnEnd(side){
     const u=units[id];
     if(u.side!==side) continue;
     if(u.status.stunned>0){
-      u.status.stunned = Math.max(0, u.status.stunned-1);
+      const next = Math.max(0, u.status.stunned-1);
+      updateStatusStacks(u,'stunned', next, {label:'眩晕', type:'debuff'});
       appendLog(`${u.name} 的眩晕减少 1（剩余 ${u.status.stunned}）`);
     }
   }
@@ -3840,7 +3875,7 @@ function applyEndOfRoundPassives(){
         const heal = Math.max(1, Math.floor(v.maxHp*0.05));
         v.hp = Math.min(v.maxHp, v.hp + heal);
         v.sp = Math.min(v.maxSp, v.sp + 5);
-        v._spBroken = (v.sp<=0);
+        syncSpBroken(v);
         appendLog(`Adora 邻近治疗：为 ${v.name} 恢复 ${heal} HP 和 5 SP`);
         showGainFloat(v,heal,5);
       }
