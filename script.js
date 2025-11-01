@@ -321,7 +321,7 @@ function injectFXStyles(){
   .spbar .spfill { height: 100%; background: #40a9ff; }
 
   .fx-layer { position: absolute; inset: 0; pointer-events: none; z-index: var(--fx-z); }
-  .fx { position: absolute; will-change: transform, opacity; }
+  .fx { position: absolute; will-change: transform, opacity; --fx-offset-x: 0px; --fx-offset-y: -28px; }
   .fx-pop { animation: fx-pop 280ms ease-out forwards; }
   .fx-float { animation: fx-float-up 900ms ease-out forwards; }
   .fx-impact { width: 60px; height: 60px; background: radial-gradient(closest-side, rgba(255,255,255,0.9), rgba(255,180,0,0.5) 60%, transparent 70%); border-radius: 50%;
@@ -331,12 +331,16 @@ function injectFXStyles(){
   .fx-number.hp.heal { color: #73d13d; }
   .fx-number.sp.damage { color: #9254de; }
   .fx-number.sp.heal { color: #40a9ff; }
+  .fx-number.status { font-size: 16px; letter-spacing: 0.4px; }
+  .fx-number.status.buff { color: #fa8c16; }
+  .fx-number.status.debuff { color: #a8071a; }
   .fx-trail { width: 6px; height: 0; background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.85), rgba(255,255,255,0));
               box-shadow: 0 0 8px rgba(255,255,255,0.8); transform-origin: 0 0; animation: fx-trail 220ms linear forwards; mix-blend-mode: screen; }
   .shake { animation: cam-shake 180ms ease-in-out 1; }
   .pulse { animation: pulse 600ms ease-out 1; }
   @keyframes fx-pop { 0%{ transform: scale(0.7); opacity: 0.0; } 55%{ transform: scale(1.1); opacity: 1; } 100%{ transform: scale(1); opacity: 1; } }
-  @keyframes fx-float-up { 0%{ transform: translate(-50%,-50%) translateY(0); opacity: 1; } 100%{ transform: translate(-50%,-50%) translateY(-36px); opacity: 0; } }
+  @keyframes fx-float-up { 0%{ transform: translate(-50%,-50%) translate(var(--fx-offset-x), var(--fx-offset-y)); opacity: 1; }
+                           100%{ transform: translate(-50%,-50%) translate(var(--fx-offset-x), calc(var(--fx-offset-y) - 36px)); opacity: 0; } }
   @keyframes fx-impact { 0%{ transform: translate(-50%,-50%) scale(0.6); opacity: 0; }
                          50%{ transform: translate(-50%,-50%) scale(1.1); opacity: 1; }
                          100%{ transform: translate(-50%,-50%) scale(0.8); opacity: 0; } }
@@ -436,21 +440,59 @@ function makeEl(cls, html=''){ const el=document.createElement('div'); el.classN
 function onAnimEndRemove(el, timeout=1200){ const done=()=>el.remove(); el.addEventListener('animationend',done,{once:true}); setTimeout(done, timeout); }
 function fxAtCell(r,c,el){ ensureFxLayer(); const p=getCellCenter(r,c); el.style.left=`${p.x}px`; el.style.top=`${p.y}px`; fxLayer.appendChild(el); return el; }
 function showHitFX(r,c){ const el=makeEl('fx-impact fx-pop'); fxAtCell(r,c, el); onAnimEndRemove(el,500); }
-function spawnFloatText(r,c,text,{className='', offsetX=0, offsetY=-28}={}){
+function spawnFloatText(r,c,text,{className='', offsetX=0, offsetY=-28, zOffset=0}={}){
   ensureFxLayer();
   const el = makeEl(`fx-number fx-float ${className}`.trim(), text);
   const node = fxAtCell(r,c,el);
-  node.style.transform = `translate(-50%,-50%) translate(${offsetX}px, ${offsetY}px)`;
+  node.style.setProperty('--fx-offset-x', `${offsetX}px`);
+  node.style.setProperty('--fx-offset-y', `${offsetY}px`);
+  if(zOffset){ node.style.zIndex = String(100 + zOffset); }
   onAnimEndRemove(node,900);
   return node;
 }
 function showDamageFloat(r,c,hp,sp){
-  if(hp>0){ spawnFloatText(r,c,`-${hp}`, {className:'hp damage', offsetY:-34}); }
-  if(sp>0){ spawnFloatText(r,c,`-${sp}`, {className:'sp damage', offsetY: hp>0 ? -12 : -34}); }
+  if(sp>0){
+    const offsetY = hp>0 ? -20 : -40;
+    spawnFloatText(r,c,`-${sp}`, {className:'sp damage', offsetY, zOffset:1});
+  }
+  if(hp>0){
+    const offsetY = sp>0 ? -56 : -40;
+    spawnFloatText(r,c,`-${hp}`, {className:'hp damage', offsetY, zOffset:2});
+  }
 }
 function showGainFloat(r,c,hp,sp){
-  if(hp>0){ spawnFloatText(r,c,`+${hp}`, {className:'hp heal', offsetY:-34}); }
-  if(sp>0){ spawnFloatText(r,c,`+${sp}`, {className:'sp heal', offsetY: hp>0 ? -12 : -34}); }
+  if(sp>0){
+    const offsetY = hp>0 ? -20 : -40;
+    spawnFloatText(r,c,`+${sp}`, {className:'sp heal', offsetY, zOffset:1});
+  }
+  if(hp>0){
+    const offsetY = sp>0 ? -56 : -40;
+    spawnFloatText(r,c,`+${hp}`, {className:'hp heal', offsetY, zOffset:2});
+  }
+}
+function showStatusFloat(r,c,label,{type='buff', delta=null, offsetY=-72}={}){
+  let text = label;
+  if(delta!==null && delta!==0){
+    const sign = delta>0 ? '+' : '';
+    text += `${sign}${delta}`;
+  }
+  return spawnFloatText(r,c,text,{className:`status ${type}`, offsetY, zOffset:3});
+}
+function updateStatusStacks(u,key,next,{label,type='buff', offsetY=-72}={}){
+  if(!u || !u.status) return next;
+  const prev = u.status[key] || 0;
+  const value = next;
+  u.status[key] = value;
+  const diff = value - prev;
+  if(diff !== 0){
+    showStatusFloat(u.r,u.c,label,{type, delta: diff, offsetY});
+  }
+  return value;
+}
+function addStatusStacks(u,key,delta,opts){
+  if(!u || !u.status || !delta) return (u && u.status) ? (u.status[key] || 0) : 0;
+  const prev = u.status[key] || 0;
+  return updateStatusStacks(u,key, prev + delta, opts);
 }
 function pulseCell(r,c){ const cell=getCellEl(r,c); if(!cell) return; cell.classList.add('pulse'); setTimeout(()=>cell.classList.remove('pulse'),620); }
 function applyCameraTransform(){
@@ -738,7 +780,8 @@ async function stageMark(cells){
 function applyStunOrStack(target, layers=1, {reason='', bypass=false}={}){
   const u = target; if(!u || u.hp<=0) return;
   if(bypass){
-    u.status.stunned = Math.max(1, u.status.stunned + 1);
+    const next = Math.max(1, (u.status.stunned||0) + 1);
+    updateStatusStacks(u,'stunned', next, {label:'眩晕', type:'debuff'});
     if(reason) appendLog(`${u.name} 因${reason}，陷入眩晕`);
     return;
   }
@@ -747,7 +790,8 @@ function applyStunOrStack(target, layers=1, {reason='', bypass=false}={}){
   appendLog(`${u.name} 眩晕叠层 +${layers}（${u._staggerStacks}/${thr}）`);
   if(u._staggerStacks >= thr){
     u._staggerStacks = 0;
-    u.status.stunned = Math.max(1, u.status.stunned + 1);
+    const next = Math.max(1, (u.status.stunned||0) + 1);
+    updateStatusStacks(u,'stunned', next, {label:'眩晕', type:'debuff'});
     if(reason) appendLog(`${u.name} 叠层达到门槛，陷入眩晕`);
   }
 }
@@ -980,7 +1024,7 @@ function adoraZap(u,target){
   cameraFocusOnCell(target.r, target.c);
   damageUnit(target.id,10,15,`${u.name} 自制粉色迷你电击装置 命中 ${target.name}`, u.id);
   applyStunOrStack(target, 1, {reason:'电击装置'});
-  target.status.paralyzed = (target.status.paralyzed||0) + 1;
+  addStatusStacks(target,'paralyzed',1,{label:'恐惧', type:'debuff'});
   appendLog(`${target.name} 下回合 -1 步`);
   u.dmgDone += 10; unitActed(u);
 }
@@ -988,7 +1032,7 @@ function adoraCheer(u, aim){
   const t = getUnitAt(aim.r, aim.c);
   if(!t || t.side!==u.side){ appendLog('加油哇！ 目标无效'); return; }
   if(t.status.jixueStacks>0){ appendLog(`${t.name} 已经处于“鸡血”状态`); return; }
-  t.status.jixueStacks = 1;
+  updateStatusStacks(t,'jixueStacks',1,{label:'鸡血', type:'buff'});
   pulseCell(t.r,t.c);
   appendLog(`${u.name} 对 ${t.name} 使用 加油哇！：赋予 1 层“鸡血”`);
   unitActed(u);
@@ -1051,7 +1095,7 @@ function adoraDepend(u, aim){
   if(!t || t.side!==u.side){ appendLog('只能靠你了。。 目标无效'); return; }
   if(t.status.dependStacks>0){ appendLog(`${t.name} 已经处于“依赖”状态`); return; }
   damageUnit(u.id, 25, 0, `${u.name} 牺牲自身 25 HP`, null, {trueDamage:true, ignoreJixue:true, ignoreDepend:true});
-  t.status.dependStacks = 1;
+  updateStatusStacks(t,'dependStacks',1,{label:'依赖', type:'buff'});
   pulseCell(t.r,t.c);
   appendLog(`${u.name} 对 ${t.name} 施加“依赖”：下一次攻击造成真实伤害并清空自身SP`);
   unitActed(u);
@@ -1183,8 +1227,8 @@ function adoraFieldMedic(u, aim){
   t.hp = Math.min(t.maxHp, t.hp + 20);
   t.sp = Math.min(t.maxSp, t.sp + 15);
   t._spBroken = (t.sp<=0);
-  t.status.recoverStacks = (t.status.recoverStacks || 0) + 1;
-  appendLog(`${u.name} 对 ${t.name} 使用 略懂的医术！：+20HP +15SP，并赋予“恢复”(${t.status.recoverStacks})`);
+  const stacks = addStatusStacks(t,'recoverStacks',1,{label:'恢复', type:'buff'});
+  appendLog(`${u.name} 对 ${t.name} 使用 略懂的医术！：+20HP +15SP，并赋予“恢复”(${stacks})`);
   showGainFloat(t.r,t.c,t.hp-hpBefore,t.sp-spBefore);
   unitActed(u);
 }
@@ -1211,7 +1255,7 @@ async function haz_HarpoonStab(u, target){
   if(Math.random() < 0.4){
     const reduced = applySpDamage(target,5,{sourceId:u.id});
     appendLog(`${target.name} SP -${reduced}（恐惧）`);
-    target.status.paralyzed = (target.status.paralyzed||0) + 1;
+    addStatusStacks(target,'paralyzed',1,{label:'恐惧', type:'debuff'});
     appendLog(`${target.name} 下回合 -1 步`);
   }
   u.dmgDone += dmg; unitActed(u);
@@ -1244,7 +1288,9 @@ async function haz_GodFork(u, target){
   if(Math.random()<0.5){ dmg = Math.round(dmg*2.0); appendLog('猎神之叉 暴怒加成 x2.0'); }
   cameraFocusOnCell(target.r, target.c);
   damageUnit(target.id, dmg, 15, `${u.name} 猎神之叉 重击 ${target.name}`, u.id);
-  target.status.bleed = Math.max(target.status.bleed||0, 2); appendLog(`${target.name} 附加流血（2回合，每回合 -5%最大HP）`);
+  const bleedStacks = Math.max(target.status.bleed||0, 2);
+  updateStatusStacks(target,'bleed', bleedStacks,{label:'流血', type:'debuff'});
+  appendLog(`${target.name} 附加流血（2回合，每回合 -5%最大HP）`);
   if(!hazMarkedTargetId){ hazMarkedTargetId = target.id; appendLog(`猎杀标记：${target.name} 被标记，七海对其伤害 +15%`); }
   u.dmgDone += dmg; unitActed(u);
 }
@@ -1269,7 +1315,7 @@ async function haz_WhaleFall(u){
     const tu = getUnitAt(c.r,c.c);
     if(tu && tu.side!=='enemy' && !set.has(tu.id)){
       damageUnit(tu.id, 50, 20, `${u.name} 鲸落 轰击 ${tu.name}`, u.id, {ignoreCover:true});
-      tu.status.paralyzed = (tu.status.paralyzed||0) + 1;
+      addStatusStacks(tu,'paralyzed',1,{label:'恐惧', type:'debuff'});
       set.add(tu.id); hits++;
     }
   }
@@ -1301,7 +1347,8 @@ async function haz_PayThePrice(u, desc){
     const tu=getUnitAt(c.r,c.c);
     if(tu && tu.side!=='enemy' && !seen.has(tu.id)){
       damageUnit(tu.id,15,0,`${u.name} 付出代价·横斩 命中 ${tu.name}`, u.id);
-      tu.status.hazBleedTurns = 2; appendLog(`${tu.name} 附加 Haz流血(2)`); seen.add(tu.id); h3++;
+      updateStatusStacks(tu,'hazBleedTurns',2,{label:'Haz流血', type:'debuff'});
+      appendLog(`${tu.name} 附加 Haz流血(2)`); seen.add(tu.id); h3++;
     }
   }
   appendLog(`付出代价：前刺${h1}/穿刺${h2}/横斩${h3}`);
@@ -1331,7 +1378,8 @@ async function haz_ForkOfHatred(u, desc){
     const tu=getUnitAt(c.r,c.c);
     if(tu && tu.side!=='enemy' && !seen2.has(tu.id)){
       damageUnit(tu.id,20,0,`${u.name} 仇恨之叉·重砸 命中 ${tu.name}`, u.id, {ignoreCover:true});
-      tu.status.hazBleedTurns = 2; appendLog(`${tu.name} 附加 Haz流血(2)`);
+      updateStatusStacks(tu,'hazBleedTurns',2,{label:'Haz流血', type:'debuff'});
+      appendLog(`${tu.name} 附加 Haz流血(2)`);
       seen2.add(tu.id); h2++;
     }
   }
@@ -1358,7 +1406,7 @@ async function katz_ChainWhip(u,desc){
     const tu=getUnitAt(c.r,c.c);
     if(tu && tu.side!=='enemy' && !set.has(tu.id)){
       damageUnit(tu.id,25,0,`${u.name} 链式鞭击 命中 ${tu.name}`, u.id);
-      tu.status.paralyzed = (tu.status.paralyzed||0) + 1;
+      addStatusStacks(tu,'paralyzed',1,{label:'恐惧', type:'debuff'});
       set.add(tu.id); hits++;
     }
   }
@@ -1500,7 +1548,8 @@ async function neyla_PierceSnipe(u, desc){
     const tu=getUnitAt(c.r,c.c);
     if(tu && tu.side!=='enemy' && !set.has(tu.id)){
       damageUnit(tu.id,30,0,`${u.name} 穿刺狙击 命中 ${tu.name}`, u.id);
-      tu.status.bleed = Math.max(tu.status.bleed||0, 2);
+      const bleedNext = Math.max(tu.status.bleed||0, 2);
+      updateStatusStacks(tu,'bleed', bleedNext,{label:'流血', type:'debuff'});
       set.add(tu.id); hits++;
     }
   }
@@ -1531,7 +1580,7 @@ async function neyla_DoubleHook(u, desc){
     target.r = stepCell.r; target.c = stepCell.c; pulseCell(target.r,target.c);
     appendLog(`${target.name} 被双钩拉近一格`);
   }
-  target.status.paralyzed = (target.status.paralyzed||0) + 1;
+  addStatusStacks(target,'paralyzed',1,{label:'恐惧', type:'debuff'});
   appendLog(`${target.name} 因双钩牵制：下回合 -1 步`);
   const dmg = calcOutgoingDamage(u,15,target,'双钩牵制');
   damageUnit(target.id, dmg, 0, `${u.name} 双钩牵制 命中 ${target.name}`, u.id);
@@ -1598,8 +1647,8 @@ async function kyn_ThroatBlade(u, aim){
   const dmg = calcOutgoingDamage(u,20,tu,'割喉飞刃');
   cameraFocusOnCell(tu.r, tu.c);
   damageUnit(tu.id, dmg, 0, `${u.name} 割喉飞刃 命中 ${tu.name}`, u.id);
-  tu.status.bleed = (tu.status.bleed||0) + 1;
-  tu.status.paralyzed = (tu.status.paralyzed||0) + 1;
+  addStatusStacks(tu,'bleed',1,{label:'流血', type:'debuff'});
+  addStatusStacks(tu,'paralyzed',1,{label:'恐惧', type:'debuff'});
   appendLog(`${tu.name} 附加 流血+1、恐惧+1`);
   unitActed(u);
 }
@@ -1837,7 +1886,7 @@ function buildSkillFactoriesForUnit(u){
         )},
         { key:'怨念滋生', prob:0.33, cond:()=>true, make:()=> skill('怨念滋生',1,'green','全图：对被猎杀标记目标 施加1流血+1恐惧',
           (uu)=>[{r:uu.r,c:uu.c,dir:uu.facing}],
-          (uu)=> { if(!hazMarkedTargetId){ appendLog('怨念滋生：没有被标记的目标'); unitActed(uu); return; } const t=units[hazMarkedTargetId]; if(!t||t.hp<=0){ appendLog('怨念滋生：标记目标不存在或已倒下'); unitActed(uu); return; } addTempClassToCells([{r:t.r,c:t.c}],'highlight-tele',TELEGRAPH_MS); setTimeout(()=>{ t.status.bleed=(t.status.bleed||0)+1; t.status.paralyzed=(t.status.paralyzed||0)+1; appendLog(`${uu.name} 怨念滋生：对 ${t.name} 施加 1层流血 与 1层恐惧`); }, TELEGRAPH_MS); unitActed(uu); },
+        (uu)=> { if(!hazMarkedTargetId){ appendLog('怨念滋生：没有被标记的目标'); unitActed(uu); return; } const t=units[hazMarkedTargetId]; if(!t||t.hp<=0){ appendLog('怨念滋生：标记目标不存在或已倒下'); unitActed(uu); return; } addTempClassToCells([{r:t.r,c:t.c}],'highlight-tele',TELEGRAPH_MS); setTimeout(()=>{ addStatusStacks(t,'bleed',1,{label:'流血', type:'debuff'}); addStatusStacks(t,'paralyzed',1,{label:'恐惧', type:'debuff'}); appendLog(`${uu.name} 怨念滋生：对 ${t.name} 施加 1层流血 与 1层恐惧`); }, TELEGRAPH_MS); unitActed(uu); },
           {},
           {castMs:800}
         )},
