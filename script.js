@@ -1724,7 +1724,7 @@ function buildSkillFactoriesForUnit(u){
       )}
     );
     F.push(
-      { key:'先苦后甜', prob:0.15, cond:()=>u.level>=25 && !(u.skillPool||[]).some(s=>s && s.name==='先苦后甜'), make:()=> skill('先苦后甜',4,'orange','自我激励：下个玩家回合额外 +4 步（此卡不可重复存在）',
+      { key:'先苦后甜', prob:0.15, cond:()=>u.level>=25 && ((u.skillPool||[]).filter(s=>s && s.name==='先苦后甜').length < 2), make:()=> skill('先苦后甜',4,'orange','自我激励：下个玩家回合额外 +4 步（技能池最多保留2张）',
         (uu)=>[{r:uu.r,c:uu.c,dir:uu.facing}],
         (uu)=> darioSweetAfterBitter(uu),
         {},
