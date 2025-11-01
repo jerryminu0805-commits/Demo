@@ -414,7 +414,17 @@ function injectFXStyles(){
   `;
   const style = document.createElement('style'); style.id='fx-styles'; style.textContent=css; document.head.appendChild(style);
 }
-function ensureFxLayer(){ if(!fxLayer){ fxLayer=document.createElement('div'); fxLayer.className='fx-layer'; battleAreaEl.appendChild(fxLayer); } }
+function ensureFxLayer(){
+  if(!battleAreaEl) return null;
+  if(!fxLayer){
+    fxLayer=document.createElement('div');
+    fxLayer.className='fx-layer';
+  }
+  if(fxLayer.parentElement!==battleAreaEl){
+    battleAreaEl.appendChild(fxLayer);
+  }
+  return fxLayer;
+}
 function getCellEl(r,c){ return document.querySelector(`.cell[data-r="${r}"][data-c="${c}"]`); }
 function getCellCenter(r,c){
   const cell = getCellEl(r,c); const area = battleAreaEl;
@@ -2123,6 +2133,7 @@ function buildGrid(){
   battleAreaEl.style.setProperty('--cell', `${CELL_SIZE}px`);
   battleAreaEl.style.gridTemplateColumns = `repeat(${COLS}, var(--cell))`;
   battleAreaEl.style.gridTemplateRows = `repeat(${ROWS}, var(--cell))`;
+  const preservedFxLayer = fxLayer;
   battleAreaEl.innerHTML = '';
   for(let r=1;r<=ROWS;r++){
     for(let c=1;c<=COLS;c++){
@@ -2157,6 +2168,9 @@ function buildGrid(){
       cell.addEventListener('contextmenu', (e)=>{ e.preventDefault(); if(interactionLocked) return; clearSkillAiming(); renderAll(); });
       battleAreaEl.appendChild(cell);
     }
+  }
+  if(preservedFxLayer){
+    battleAreaEl.appendChild(preservedFxLayer);
   }
 }
 function refreshLargeOverlays(){
