@@ -421,6 +421,43 @@ function injectFXStyles(){
   .skill-fx.claw .scratch[data-index="2"] { --scratch-shift: 6px; animation-delay: 60ms; }
   .skill-fx.claw .scratch[data-index="3"] { --scratch-shift: 22px; animation-delay: 90ms; }
   .skill-fx.claw .scratch[data-index="4"] { --scratch-shift: 38px; animation-delay: 120ms; }
+  .skill-fx.attack-swing { width: 150px; height: 150px; }
+  .skill-fx.attack-swing .glow { position:absolute; left:50%; top:50%; width:82%; height:82%; border-radius:50%; opacity:0;
+                                 transform: translate(-50%, -50%) scale(0.3);
+                                 background: radial-gradient(circle, var(--skill-secondary, rgba(255,255,255,0.6)) 0%, rgba(255,255,255,0) 70%);
+                                 animation: attack-swing-glow 420ms ease-out forwards; }
+  .skill-fx.attack-swing .arc { position:absolute; left:50%; top:50%; width:18px; height:94%; border-radius:999px; opacity:0;
+                                transform-origin:50% 88%;
+                                background: linear-gradient(180deg, rgba(255,255,255,0.0), var(--skill-primary, rgba(255,255,255,0.95)) 52%, rgba(255,255,255,0));
+                                box-shadow: 0 0 18px var(--skill-primary, rgba(255,255,255,0.4));
+                                animation: attack-swing-arc 420ms ease-out forwards; }
+  .skill-fx.attack-swing[data-variant="claw"] .arc { height: 100%; width: 16px; transform-origin:50% 90%; }
+  .skill-fx.attack-swing[data-variant="mecha"] .arc { box-shadow: 0 0 22px var(--skill-primary, rgba(255,255,255,0.55)); }
+  .skill-fx.attack-swing[data-variant="wide"] .arc { height: 110%; }
+  .skill-fx.attack-swing .arc { transform: translate(-50%, -50%) rotate(calc(var(--attack-angle, 0deg) + var(--arc-angle-offset, 0deg))); }
+  .skill-fx.attack-muzzle { width: calc(var(--attack-length, 90px) + 50px); height: 86px;
+                            transform: translate(-50%, -50%) rotate(var(--attack-angle, 0deg)); }
+  .skill-fx.attack-muzzle .flash { position:absolute; left:24%; top:50%; width:48px; height:48px; border-radius:50%; opacity:0.9;
+                                   transform: translate(-50%, -50%) scale(0.4);
+                                   background: radial-gradient(circle, var(--skill-primary, rgba(255,255,255,0.85)) 0%, rgba(255,255,255,0) 72%);
+                                   box-shadow: 0 0 24px var(--skill-primary, rgba(255,255,255,0.55));
+                                   animation: attack-muzzle-flash 360ms ease-out forwards; }
+  .skill-fx.attack-muzzle .trail { position:absolute; left:50%; top:50%; height:12px; width: var(--attack-length, 90px);
+                                   border-radius: 999px; opacity:0;
+                                   transform: translate(-10%, -50%);
+                                   background: linear-gradient(90deg, rgba(255,255,255,0.0) 0%, var(--skill-primary, rgba(255,255,255,0.85)) 45%, rgba(255,255,255,0) 100%);
+                                   box-shadow: 0 0 18px var(--skill-secondary, rgba(255,255,255,0.4));
+                                   animation: attack-muzzle-trail 420ms ease-out forwards; }
+  .skill-fx.attack-aura { width: 150px; height: 150px; }
+  .skill-fx.attack-aura .ring { position:absolute; left:50%; top:50%; width:86%; height:86%; border-radius:50%; opacity:0;
+                                 transform: translate(-50%, -50%) scale(0.35);
+                                 border:2px solid var(--skill-primary, rgba(255,255,255,0.8));
+                                 box-shadow: 0 0 18px var(--skill-secondary, rgba(255,255,255,0.35));
+                                 animation: attack-aura-ring 520ms ease-out forwards; }
+  .skill-fx.attack-aura .pulse { position:absolute; left:50%; top:50%; width:64%; height:64%; border-radius:50%; opacity:0;
+                                 transform: translate(-50%, -50%) scale(0.5);
+                                 background: radial-gradient(circle, var(--skill-secondary, rgba(255,255,255,0.55)) 0%, rgba(255,255,255,0) 72%);
+                                 animation: attack-aura-pulse 520ms ease-out forwards; }
   .skill-fx.beam { width: calc(var(--skill-length, 140px) + 60px); height: 80px; }
   .skill-fx.beam .muzzle { position:absolute; left:50%; top:50%; width:52px; height:52px; border-radius:50%; opacity:0.8;
                            transform: translate(-50%,-50%) scale(0.35);
@@ -545,6 +582,24 @@ function injectFXStyles(){
   @keyframes fx-attack-spark { 0% { opacity: 0; transform: translate(-50%, -50%) rotate(var(--spark-angle, 0deg)) translateX(0) scale(0.3); }
                                35% { opacity: 1; }
                                100% { opacity: 0; transform: translate(-50%, -50%) rotate(var(--spark-angle, 0deg)) translateX(86px) scale(0.65); } }
+  @keyframes attack-swing-glow { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.25); }
+                                 35% { opacity: 0.85; transform: translate(-50%, -50%) scale(0.95); }
+                                 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.3); } }
+  @keyframes attack-swing-arc { 0% { opacity: 0; transform: translate(-50%, -50%) rotate(calc(var(--attack-angle,0deg) + var(--arc-angle-offset,0deg) - 26deg)) scaleY(0.25) scaleX(0.55); }
+                                35% { opacity: 1; transform: translate(-50%, -50%) rotate(calc(var(--attack-angle,0deg) + var(--arc-angle-offset,0deg) - 6deg)) scaleY(1.15) scaleX(1.05); }
+                                100% { opacity: 0; transform: translate(-50%, -50%) rotate(calc(var(--attack-angle,0deg) + var(--arc-angle-offset,0deg) + 16deg)) scaleY(0.45) scaleX(0.8); } }
+  @keyframes attack-muzzle-flash { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.35); }
+                                   30% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+                                   100% { opacity: 0; transform: translate(-50%, -50%) scale(1.35); } }
+  @keyframes attack-muzzle-trail { 0% { opacity: 0; width: 0; }
+                                   35% { opacity: 1; width: var(--attack-length, 90px); }
+                                   100% { opacity: 0; width: var(--attack-length, 90px); } }
+  @keyframes attack-aura-ring { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.35); }
+                                40% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+                                100% { opacity: 0; transform: translate(-50%, -50%) scale(1.45); } }
+  @keyframes attack-aura-pulse { 0% { opacity: 0.7; transform: translate(-50%, -50%) scale(0.6); }
+                                 55% { opacity: 0.95; transform: translate(-50%, -50%) scale(1.0); }
+                                 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.3); } }
   @keyframes skill-fx-fade { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.82); }
                              22% { opacity: 1; }
                              100% { opacity: 0; transform: translate(-50%, -50%) scale(1.08); } }
@@ -883,6 +938,141 @@ function computeSkillFxAngle(anchor, attacker, fallbackAngle=null){
 }
 function makeSkillFxNode(baseClass, html=''){ const node = makeEl(`skill-fx ${baseClass}`.trim(), html); return node; }
 function attachSkillFx(node, anchor){ if(!anchor) return null; fxAtPoint(anchor.x, anchor.y, node); return node; }
+function buildAttackSwingFx({anchor, angle, config}){
+  const node = makeSkillFxNode('attack-swing');
+  node.style.setProperty('--skill-primary', config.primary || '#ffffff');
+  node.style.setProperty('--skill-secondary', config.secondary || 'rgba(255,255,255,0.45)');
+  node.style.setProperty('--attack-angle', `${angle}deg`);
+  node.dataset.variant = config.variant || 'slash';
+  const swings = Math.max(1, config.swings || 1);
+  let html = '<div class="glow"></div>';
+  for(let i=0;i<swings;i++){ html += `<div class="arc" data-index="${i}"></div>`; }
+  node.innerHTML = html;
+  const arcs = node.querySelectorAll('.arc');
+  const pivot = (swings - 1) / 2;
+  const spread = config.spread ?? 16;
+  const delayBase = config.delayBase ?? 0;
+  const delayStep = config.delayStep ?? 40;
+  arcs.forEach((el, i)=>{
+    const offset = (i - pivot) * spread;
+    el.style.setProperty('--arc-angle-offset', `${offset}deg`);
+    const delay = delayBase + i * delayStep;
+    if(delay){ el.style.animationDelay = `${delay}ms`; }
+  });
+  onAnimEndRemove(node, config.duration || 460);
+  return attachSkillFx(node, anchor);
+}
+function buildAttackMuzzleFx({anchor, angle, config}){
+  const node = makeSkillFxNode('attack-muzzle');
+  node.style.setProperty('--skill-primary', config.primary || '#ffffff');
+  node.style.setProperty('--skill-secondary', config.secondary || 'rgba(255,255,255,0.45)');
+  node.style.setProperty('--attack-angle', `${angle}deg`);
+  node.style.setProperty('--attack-length', `${config.length || 90}px`);
+  node.innerHTML = '<div class="flash"></div><div class="trail"></div>';
+  onAnimEndRemove(node, config.duration || 360);
+  return attachSkillFx(node, anchor);
+}
+function buildAttackAuraFx({anchor, angle, config}){
+  const node = makeSkillFxNode('attack-aura');
+  node.style.setProperty('--skill-primary', config.primary || '#ffffff');
+  node.style.setProperty('--skill-secondary', config.secondary || 'rgba(255,255,255,0.45)');
+  node.innerHTML = '<div class="ring"></div><div class="pulse"></div>';
+  onAnimEndRemove(node, config.duration || 520);
+  return attachSkillFx(node, anchor);
+}
+const SKILL_ATTACK_BUILDERS = {
+  swing: buildAttackSwingFx,
+  muzzle: buildAttackMuzzleFx,
+  aura: buildAttackAuraFx,
+};
+function computeFacingAngleForUnit(u){
+  if(!u) return 0;
+  switch(u.facing){
+    case 'left': return 180;
+    case 'up': return -90;
+    case 'down': return 90;
+    default: return 0;
+  }
+}
+function computeAttackFxAngle(anchor, ctx, config){
+  if(typeof config.angle === 'number'){ return config.angle; }
+  const attacker = ctx ? ctx.attacker : null;
+  const targetRef = (config.faceTarget === false) ? null : (ctx ? (ctx.target || ctx.point || ctx.cell || ctx.fxPoint || ctx.fxCell) : null);
+  if(attacker){
+    const attPoint = getUnitCenterPoint(attacker);
+    if(attPoint){
+      if(targetRef){
+        const targetAnchor = resolveFxAnchor(targetRef);
+        if(targetAnchor){
+          const base = Math.atan2(targetAnchor.y - attPoint.y, targetAnchor.x - attPoint.x) * 180 / Math.PI;
+          return typeof config.angleOffset === 'number' ? base + config.angleOffset : base;
+        }
+      }
+      if(anchor && anchor.x !== undefined && anchor.y !== undefined){
+        const base = Math.atan2(anchor.y - attPoint.y, anchor.x - attPoint.x) * 180 / Math.PI;
+        return typeof config.angleOffset === 'number' ? base + config.angleOffset : base;
+      }
+      const base = computeFacingAngleForUnit(attacker);
+      return typeof config.angleOffset === 'number' ? base + config.angleOffset : base;
+    }
+  }
+  return typeof config.angleOffset === 'number' ? config.angleOffset : 0;
+}
+function deriveAttackFxConfig(config){
+  if(!config) return null;
+  switch(config.type){
+    case 'slash':{
+      const swings = Math.max(1, config.slashes || 1);
+      const variant = config.variant === 'harpoon' ? 'wide' : (config.variant || 'slash');
+      const spread = config.attackSpread ?? (variant === 'wide' ? 22 : 16);
+      return {type:'swing', swings, spread, delayStep: swings>1 ? 34 : 0, variant};
+    }
+    case 'claw':{
+      const swings = Math.max(1, Math.min(4, config.scratches || 3));
+      const spread = config.attackSpread ?? 14;
+      const variant = config.variant === 'mecha' ? 'mecha' : 'claw';
+      return {type:'swing', swings, spread, delayStep: config.delayStep ?? 26, variant};
+    }
+    case 'beam':{
+      return {type:'muzzle', length: Math.max(70, config.length || 120)};
+    }
+    case 'burst':
+    case 'impact':
+    case 'aura':
+    case 'lightning':
+    case 'rune':
+    case 'cascade':
+    case 'spiral':
+      return {type:'aura'};
+    default:
+      return null;
+  }
+}
+function showSkillAttackFx(config, ctx={}){
+  if(!config) return null;
+  const builder = SKILL_ATTACK_BUILDERS[config.type];
+  if(!builder) return null;
+  let anchorTarget = ctx ? ctx.attacker : null;
+  if(config.anchor === 'target'){ anchorTarget = ctx ? ctx.target : anchorTarget; }
+  else if(config.anchor === 'cell'){ anchorTarget = (ctx && (ctx.fxCell || ctx.cell)) || anchorTarget; }
+  else if(config.anchor === 'point'){ anchorTarget = (ctx && (ctx.fxPoint || ctx.point)) || anchorTarget; }
+  const anchor = resolveFxAnchor(anchorTarget || (ctx ? ctx.attacker : null));
+  if(!anchor) return null;
+  const angle = computeAttackFxAngle(anchor, ctx, config);
+  return builder({anchor, angle, config, ctx});
+}
+function maybeShowAttackFxForSkill(config, ctx){
+  if(!ctx || !ctx.attacker) return;
+  const baseConfig = config || null;
+  const derived = baseConfig && baseConfig.attack ? Object.assign({}, baseConfig.attack) : deriveAttackFxConfig(baseConfig);
+  if(!derived) return;
+  if(baseConfig){
+    if(derived.primary === undefined) derived.primary = baseConfig.primary;
+    if(derived.secondary === undefined) derived.secondary = baseConfig.secondary;
+    if(!derived.variant && baseConfig.variant) derived.variant = baseConfig.variant;
+  }
+  showSkillAttackFx(derived, ctx);
+}
 function buildSlashSkillFx({anchor, angle, config}){
   const node = makeSkillFxNode('slash');
   node.style.setProperty('--skill-primary', config.primary || '#fff');
@@ -1079,7 +1269,7 @@ const SKILL_FX_CONFIG = {
   'adora:加油哇！':         {type:'aura', primary:'#ffcf74', secondary:'#ffe9bb', glyph:'★'},
   'adora:只能靠你了。。':   {type:'impact', primary:'#ff6161', secondary:'#ffd6d6'},
   'adora:枪击':             {type:'beam', primary:'#ffd780', secondary:'#fff1c2', glow:'rgba(255,255,255,0.9)', variant:'adora'},
-  'dario:机械爪击':         {type:'claw', primary:'#f6c55b', secondary:'#fff3c7', scratches:6, spacing:18, delayStep:26, shards:6, shardSpread:18, shardArc:16, shardStartAngle:-34, variant:'mecha'},
+  'dario:机械爪击':         {type:'claw', primary:'#f6c55b', secondary:'#fff3c7', scratches:4, spacing:14, delayStep:22, shards:3, shardSpread:12, shardArc:10, shardStartAngle:-24, variant:'mecha', attack:{type:'swing', swings:2, spread:12, delayStep:32, variant:'mecha'}},
   'dario:枪击':             {type:'beam', primary:'#9ee0ff', secondary:'#dcf6ff', glow:'rgba(255,255,255,0.85)', variant:'dario'},
   'dario:迅捷步伐':         {type:'spiral', primary:'#7fe8ff', secondary:'#d6f8ff'},
   'dario:拿来吧你！':       {type:'claw', primary:'#ffa56a', secondary:'#ffd7b9', scratches:5},
@@ -1090,13 +1280,13 @@ const SKILL_FX_CONFIG = {
   'karma:嗜血之握':         {type:'claw', primary:'#d95ffb', secondary:'#f0b8ff', scratches:3},
   'karma:深呼吸':           {type:'aura', primary:'#7ecfff', secondary:'#d7f1ff', glyph:'息'},
   'haz:鱼叉穿刺':           {type:'beam', primary:'#5fd9ff', secondary:'#c5f2ff', glow:'rgba(255,255,255,0.8)', variant:'harpoon'},
-  'haz:深海猎杀':           {type:'slash', primary:'#4ecdf2', secondary:'rgba(170,236,255,0.6)', spark:'#e3fbff', slashes:3},
-  'haz:猎神之叉':           {type:'slash', primary:'#ffe373', secondary:'rgba(255,233,152,0.7)', spark:'#fff6c4', slashes:2},
+  'haz:深海猎杀':           {type:'slash', primary:'#4ecdf2', secondary:'rgba(170,236,255,0.6)', spark:'#e3fbff', slashes:3, attack:{type:'swing', swings:3, spread:24, delayStep:36, variant:'wide', faceTarget:false}},
+  'haz:猎神之叉':           {type:'slash', primary:'#ffe373', secondary:'rgba(255,233,152,0.7)', spark:'#fff6c4', slashes:2, attack:{type:'swing', swings:2, spread:22, delayStep:30, variant:'wide', faceTarget:false}},
   'haz:锁链缠绕':           {type:'rune', primary:'#8ed8ff', secondary:'#dff3ff', variant:'chain'},
   'haz:鲸落':               {type:'cascade', primary:'#8ae8ff', secondary:'#d5f9ff', droplets:6},
   'haz:怨念滋生':           {type:'rune', primary:'#b56fff', secondary:'#eed4ff', variant:'curse'},
-  'haz:付出代价':           {type:'slash', primary:'#ff6d6d', secondary:'rgba(255,158,158,0.7)', spark:'#ffd3d3', slashes:4},
-  'haz:仇恨之叉':           {type:'slash', primary:'#ffa365', secondary:'rgba(255,202,153,0.7)', spark:'#ffe7d4', slashes:4},
+  'haz:付出代价':           {type:'slash', primary:'#ff6d6d', secondary:'rgba(255,158,158,0.7)', spark:'#ffd3d3', slashes:4, attack:{type:'swing', swings:3, spread:26, delayStep:30, variant:'wide', faceTarget:false}},
+  'haz:仇恨之叉':           {type:'slash', primary:'#ffa365', secondary:'rgba(255,202,153,0.7)', spark:'#ffe7d4', slashes:4, attack:{type:'swing', swings:3, spread:24, delayStep:30, variant:'wide', faceTarget:false}},
   'haz:怨念滋生·恐惧':      {type:'rune', primary:'#9c60ff', secondary:'#e4ceff', variant:'fear'},
   'haz:锁链缠绕·增益':      {type:'aura', primary:'#74b2ff', secondary:'#cce0ff', glyph:'链'},
   'haz:锁链缠绕·反击':      {type:'burst', primary:'#9ad9ff', secondary:'#e3f4ff'},
@@ -1125,6 +1315,7 @@ function showSkillFx(skillKey, ctx={}){
   if(!skillKey){ return showAttackFx(ctx); }
   const config = SKILL_FX_CONFIG[skillKey];
   if(!config){ return showAttackFx(ctx); }
+  maybeShowAttackFxForSkill(config, ctx);
   const builder = SKILL_FX_BUILDERS[config.type];
   if(!builder){ return showAttackFx(ctx); }
   const anchor = resolveSkillFxAnchor(ctx);
