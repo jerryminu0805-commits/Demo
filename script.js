@@ -361,6 +361,145 @@ function injectFXStyles(){
   .fx-attack.true-damage .spark { background: radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(166,93,255,0) 65%); }
   .fx-attack .spark.left { --spark-angle: -40deg; }
   .fx-attack .spark.right { --spark-angle: 140deg; }
+  .skill-fx { position: absolute; transform: translate(-50%, -50%); pointer-events: none; mix-blend-mode: screen; opacity: 0;
+              filter: drop-shadow(0 12px 26px rgba(0,0,0,0.55)); animation: skill-fx-fade 680ms ease-out forwards; }
+  .skill-fx .glyph { font-weight: 800; font-size: 26px; letter-spacing: 1px; color: var(--skill-outline, rgba(255,255,255,0.85));
+                     text-shadow: 0 0 12px rgba(255,255,255,0.35); }
+  .skill-fx.slash { width: 160px; height: 160px; }
+  .skill-fx.slash .flash { position: absolute; left: 50%; top: 50%; width: 62%; height: 62%; border-radius: 50%; opacity: 0;
+                            background: radial-gradient(circle, var(--skill-secondary, rgba(255,255,255,0.8)) 0%, rgba(255,255,255,0) 70%);
+                            transform: translate(-50%, -50%) scale(0.4); animation: skill-slash-flash 420ms ease-out forwards; }
+  .skill-fx.slash .ring { position: absolute; left: 50%; top: 50%; width: 56%; height: 56%; border-radius: 50%;
+                          border: 3px solid var(--skill-secondary, rgba(255,255,255,0.65)); opacity: 0;
+                          transform: translate(-50%, -50%) scale(0.35);
+                          box-shadow: 0 0 18px var(--skill-secondary, rgba(255,255,255,0.35)); animation: skill-slash-ring 520ms ease-out forwards; }
+  .skill-fx.slash .sparks { position: absolute; inset: 0; }
+  .skill-fx.slash .spark { position: absolute; left: 50%; top: 50%; width: 16px; height: 16px; border-radius: 50%; opacity: 0;
+                           background: radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0) 70%);
+                           transform-origin: 0 0; animation: skill-slash-spark 480ms ease-out forwards; }
+  .skill-fx.slash .spark.left { --spark-angle: -50deg; }
+  .skill-fx.slash .spark.right { --spark-angle: 140deg; }
+  .skill-fx.slash .strokes { position: absolute; inset: 0; }
+  .skill-fx.slash .stroke { position: absolute; left: 50%; top: 50%; width: 26px; height: 120%; border-radius: 999px; opacity: 0;
+                            transform-origin: 50% 100%; background: linear-gradient(180deg, rgba(255,255,255,0), var(--skill-primary, rgba(255,255,255,0.92)) 45%, rgba(255,255,255,0));
+                            animation: skill-slash-stroke 520ms ease-out forwards; }
+  .skill-fx.slash .stroke[data-index="0"] { --stroke-offset: -18deg; --stroke-shift: -6deg; }
+  .skill-fx.slash .stroke[data-index="1"] { --stroke-offset: 0deg; --stroke-shift: 0deg; animation-delay: 40ms; }
+  .skill-fx.slash .stroke[data-index="2"] { --stroke-offset: 20deg; --stroke-shift: 8deg; animation-delay: 70ms; }
+  .skill-fx.claw { width: 160px; height: 160px; }
+  .skill-fx.claw .burst { position: absolute; left:50%; top:50%; width: 68%; height:68%; border-radius: 50%; opacity:0.8;
+                           transform: translate(-50%,-50%) scale(0.4);
+                           background: radial-gradient(circle, var(--skill-secondary, rgba(255,255,255,0.7)) 0%, rgba(255,255,255,0) 70%);
+                           animation: skill-claw-burst 520ms ease-out forwards; }
+  .skill-fx.claw[data-variant="mecha"] .burst { box-shadow: 0 0 22px var(--skill-primary, rgba(255,255,255,0.6));
+                                                 background: radial-gradient(circle, rgba(255,255,255,0.65) 0%, var(--skill-secondary, rgba(255,255,255,0.0)) 70%); }
+  .skill-fx.claw .scratch { position:absolute; left:50%; top:50%; width:12px; height:120%; opacity:0; transform-origin:50% 0;
+                             animation: skill-claw-scratch 560ms ease-out forwards; }
+  .skill-fx.claw .scratch span { display:block; width:100%; height:100%; border-radius:999px;
+                                 background: linear-gradient(180deg, rgba(255,255,255,0.05), var(--skill-primary,#ffffff) 55%, rgba(255,255,255,0));
+                                 box-shadow: 0 0 16px var(--skill-primary, rgba(255,255,255,0.35)); }
+  .skill-fx.claw .shard { position:absolute; left:50%; top:50%; width:18px; height:38px; border-radius:999px; opacity:0;
+                          transform-origin:50% 90%; background: linear-gradient(180deg, rgba(255,255,255,0.3), var(--skill-primary, rgba(255,255,255,0.9)) 60%, rgba(255,255,255,0));
+                          filter: drop-shadow(0 0 10px rgba(255,255,255,0.45)); animation: skill-claw-shard 520ms ease-out forwards; }
+  .skill-fx.claw[data-variant="mecha"] .servo-ring { position:absolute; left:50%; top:50%; width:130%; height:130%; border-radius:50%;
+                                                       border:3px solid var(--skill-primary, rgba(255,255,255,0.85)); opacity:0;
+                                                       transform: translate(-50%, -50%) scale(0.4);
+                                                       box-shadow: 0 0 18px var(--skill-secondary, rgba(255,255,255,0.35));
+                                                       animation: skill-claw-servo 620ms ease-out forwards; }
+  .skill-fx.claw[data-variant="mecha"] .servo-flare { position:absolute; left:50%; top:50%; width:84%; height:84%; border-radius:50%; opacity:0;
+                                                        transform: translate(-50%, -50%) scale(0.5);
+                                                        background: radial-gradient(circle, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0) 70%);
+                                                        animation: skill-claw-servo-flare 600ms ease-out forwards; }
+  .skill-fx.claw[data-variant="mecha"] .mecha-sparks { position:absolute; inset:0; }
+  .skill-fx.claw[data-variant="mecha"] .mecha-sparks .spark { position:absolute; left:50%; top:50%; width:18px; height:18px; border-radius:50%;
+                                                                background: radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0) 70%);
+                                                                opacity:0; transform-origin:0 0; animation: skill-claw-mecha-spark 520ms ease-out forwards; }
+  .skill-fx.claw[data-variant="mecha"] .mecha-sparks .spark.one { --spark-angle: -35deg; }
+  .skill-fx.claw[data-variant="mecha"] .mecha-sparks .spark.two { --spark-angle: 145deg; animation-delay: 70ms; }
+  .skill-fx.claw .scratch[data-index="0"] { --scratch-shift:-28px; }
+  .skill-fx.claw .scratch[data-index="1"] { --scratch-shift:-12px; animation-delay: 30ms; }
+  .skill-fx.claw .scratch[data-index="2"] { --scratch-shift: 6px; animation-delay: 60ms; }
+  .skill-fx.claw .scratch[data-index="3"] { --scratch-shift: 22px; animation-delay: 90ms; }
+  .skill-fx.claw .scratch[data-index="4"] { --scratch-shift: 38px; animation-delay: 120ms; }
+  .skill-fx.beam { width: calc(var(--skill-length, 140px) + 60px); height: 80px; }
+  .skill-fx.beam .muzzle { position:absolute; left:50%; top:50%; width:52px; height:52px; border-radius:50%; opacity:0.8;
+                           transform: translate(-50%,-50%) scale(0.35);
+                           background: radial-gradient(circle, var(--skill-secondary, rgba(255,255,255,0.85)) 0%, rgba(255,255,255,0) 70%);
+                           animation: skill-beam-muzzle 360ms ease-out forwards; }
+  .skill-fx.beam .trail { position:absolute; left:50%; top:50%; height:12px; width: var(--skill-length, 140px);
+                          background: linear-gradient(90deg, var(--skill-secondary, rgba(255,255,255,0.45)) 0%, var(--skill-primary, rgba(255,255,255,0.95)) 70%, rgba(255,255,255,0) 100%);
+                          border-radius: 999px; opacity:0; transform-origin:0 50%; animation: skill-beam-trail 360ms ease-out forwards; }
+  .skill-fx.beam .flare { position:absolute; right:8%; top:50%; width:42px; height:42px; border-radius:50%; opacity:0;
+                          background: radial-gradient(circle, rgba(255,255,255,0.85) 0%, transparent 70%);
+                          animation: skill-beam-flare 380ms ease-out forwards; }
+  .skill-fx.burst { width: 200px; height: 200px; }
+  .skill-fx.burst .ring { position:absolute; left:50%; top:50%; width:70%; height:70%; border-radius:50%; border:3px solid var(--skill-primary,#ffffff);
+                          transform:translate(-50%,-50%) scale(0.4); opacity:0; animation: skill-burst-ring 620ms ease-out forwards; }
+  .skill-fx.burst .wave { position:absolute; left:50%; top:50%; width:96%; height:96%; border-radius:50%; opacity:0;
+                          background: radial-gradient(circle, var(--skill-secondary, rgba(255,255,255,0.6)) 0%, rgba(255,255,255,0) 80%);
+                          transform:translate(-50%,-50%) scale(0.3); animation: skill-burst-wave 660ms ease-out forwards; }
+  .skill-fx.burst .core { position:absolute; left:50%; top:50%; width:38%; height:38%; border-radius:50%; opacity:0.9;
+                          transform:translate(-50%,-50%); background: radial-gradient(circle, rgba(255,255,255,0.92) 0%, var(--skill-primary, rgba(255,255,255,0.85)) 80%);
+                          animation: skill-burst-core 420ms ease-out forwards; }
+  .skill-fx.aura { width: 170px; height: 170px; filter: drop-shadow(0 0 16px var(--skill-primary, rgba(255,255,255,0.35))); }
+  .skill-fx.aura .halo { position:absolute; left:50%; top:50%; width:86%; height:86%; border-radius:50%; opacity:0;
+                          transform:translate(-50%,-50%) scale(0.6);
+                          background: radial-gradient(circle, var(--skill-secondary, rgba(255,255,255,0.75)) 0%, rgba(255,255,255,0) 75%);
+                          animation: skill-aura-halo 760ms ease-out forwards; }
+  .skill-fx.aura .glyph { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); opacity:0;
+                          animation: skill-aura-glyph 720ms ease-out forwards; }
+  .skill-fx.aura .particles { position:absolute; inset:0; background: radial-gradient(circle, var(--skill-primary, rgba(255,255,255,0.35)) 0%, rgba(255,255,255,0) 70%);
+                              border-radius:50%; opacity:0.6; filter: blur(12px); animation: skill-aura-pulse 780ms ease-out forwards; }
+  .skill-fx.lightning { width: 180px; height: 180px; }
+  .skill-fx.lightning .glow { position:absolute; left:50%; top:50%; width:80%; height:80%; border-radius:50%; opacity:0.8;
+                               transform:translate(-50%,-50%) scale(0.4); background: radial-gradient(circle, var(--skill-secondary, rgba(255,255,255,0.85)) 0%, rgba(255,255,255,0) 75%);
+                               animation: skill-lightning-glow 520ms ease-out forwards; }
+  .skill-fx.lightning .bolt { position:absolute; left:50%; top:50%; width:6px; height:110%; opacity:0;
+                              background: linear-gradient(180deg, rgba(255,255,255,0), var(--skill-primary,#ffffff) 45%, rgba(255,255,255,0));
+                              transform-origin:50% 0; animation: skill-lightning-bolt 520ms ease-out forwards; }
+  .skill-fx.lightning .bolt[data-index="0"] { transform: translate(-50%, -50%) rotate(calc(var(--skill-angle,0deg) - 18deg)); }
+  .skill-fx.lightning .bolt[data-index="1"] { transform: translate(-50%, -50%) rotate(calc(var(--skill-angle,0deg) + 6deg)); animation-delay: 50ms; }
+  .skill-fx.lightning .bolt[data-index="2"] { transform: translate(-50%, -50%) rotate(calc(var(--skill-angle,0deg) + 28deg)); animation-delay: 90ms; }
+  .skill-fx.lightning .bolt[data-index="3"] { transform: translate(-50%, -50%) rotate(calc(var(--skill-angle,0deg) - 40deg)); animation-delay: 120ms; }
+  .skill-fx.rune { width: 190px; height: 190px; }
+  .skill-fx.rune .sigil { position:absolute; left:50%; top:50%; width:74%; height:74%; border-radius:50%; border:2px solid var(--skill-primary,#ffffff);
+                          transform:translate(-50%,-50%) scale(0.4); opacity:0; animation: skill-rune-circle 700ms ease-out forwards; }
+  .skill-fx.rune .orbit { position:absolute; left:50%; top:50%; width:90%; height:90%; border-radius:50%; border:1px dashed var(--skill-secondary,#ffffff);
+                          transform:translate(-50%,-50%); opacity:0.65; animation: skill-rune-spin 900ms linear forwards; }
+  .skill-fx.rune .flare { position:absolute; left:50%; top:50%; width:44%; height:44%; border-radius:50%; opacity:0;
+                          background: radial-gradient(circle, rgba(255,255,255,0.92) 0%, var(--skill-primary, rgba(255,255,255,0.82)) 80%);
+                          transform:translate(-50%,-50%); animation: skill-rune-flare 520ms ease-out forwards; }
+  .skill-fx.impact { width: 180px; height: 180px; }
+  .skill-fx.impact .shock { position:absolute; left:50%; top:50%; width:70%; height:70%; border-radius:50%; opacity:0;
+                             background: radial-gradient(circle, var(--skill-primary, rgba(255,255,255,0.75)) 0%, rgba(255,255,255,0) 80%);
+                             transform:translate(-50%,-50%) scale(0.45); animation: skill-impact-shock 640ms ease-out forwards; }
+  .skill-fx.impact .dust { position:absolute; left:50%; top:65%; width:120%; height:40%; opacity:0.7;
+                           background: radial-gradient(circle, var(--skill-secondary, rgba(255,255,255,0.6)) 0%, rgba(255,255,255,0) 80%);
+                           transform:translate(-50%,-50%) scaleX(0.4); animation: skill-impact-dust 720ms ease-out forwards; filter: blur(6px); }
+  .skill-fx.impact .cracks { position:absolute; left:50%; top:50%; width:80%; height:80%; opacity:0;
+                             background: radial-gradient(circle, rgba(255,255,255,0.75) 0%, rgba(255,255,255,0) 75%);
+                             transform:translate(-50%,-50%) scale(0.3); mask: radial-gradient(circle, transparent 45%, #000 46%);
+                             animation: skill-impact-crack 620ms ease-out forwards; }
+  .skill-fx.cascade { width: 130px; height: 200px; }
+  .skill-fx.cascade .column { position:absolute; left:50%; top:0; width:46px; height:100%; opacity:0.75;
+                               background: linear-gradient(180deg, var(--skill-primary, rgba(255,255,255,0.7)) 0%, rgba(255,255,255,0) 85%);
+                               transform:translateX(-50%); animation: skill-cascade-column 720ms ease-out forwards; }
+  .skill-fx.cascade .drop { position:absolute; left:50%; width:14px; height:24px; border-radius:999px;
+                             background: radial-gradient(circle, rgba(255,255,255,0.9) 0%, var(--skill-secondary, rgba(255,255,255,0.65)) 70%);
+                             opacity:0; animation: skill-cascade-drop 680ms ease-out forwards; }
+  .skill-fx.cascade .drop[data-index="0"] { top:10%; animation-delay: 20ms; }
+  .skill-fx.cascade .drop[data-index="1"] { top:32%; animation-delay: 70ms; }
+  .skill-fx.cascade .drop[data-index="2"] { top:56%; animation-delay: 110ms; }
+  .skill-fx.cascade .drop[data-index="3"] { top:74%; animation-delay: 150ms; }
+  .skill-fx.cascade .drop[data-index="4"] { top:20%; animation-delay: 200ms; }
+  .skill-fx.cascade .drop[data-index="5"] { top:44%; animation-delay: 240ms; }
+  .skill-fx.spiral { width: 180px; height: 180px; }
+  .skill-fx.spiral .swirl { position:absolute; left:50%; top:50%; width:80%; height:80%; border-radius:50%; border:4px solid var(--skill-primary, rgba(255,255,255,0.7));
+                             transform:translate(-50%,-50%) scale(0.3); opacity:0; animation: skill-spiral-spin 640ms ease-out forwards; }
+  .skill-fx.spiral .swirl.two { border-color: var(--skill-secondary, rgba(255,255,255,0.7)); animation-delay: 80ms; }
+  .skill-fx.spiral .center { position:absolute; left:50%; top:50%; width:32%; height:32%; border-radius:50%; opacity:0.9;
+                              background: radial-gradient(circle, rgba(255,255,255,0.92) 0%, var(--skill-secondary, rgba(255,255,255,0.75)) 90%);
+                              transform:translate(-50%,-50%); animation: skill-spiral-center 540ms ease-out forwards; }
   .fx-death { position: absolute; transform: translate(-50%, -50%); pointer-events: none; overflow: visible;
               filter: drop-shadow(0 14px 28px rgba(0,0,0,0.45)); animation: fx-death-fade 900ms ease-out forwards; }
   .fx-death .piece { position: absolute; left: 0; width: 100%; height: 50%; box-sizing: border-box; border-radius: 8px;
@@ -406,6 +545,101 @@ function injectFXStyles(){
   @keyframes fx-attack-spark { 0% { opacity: 0; transform: translate(-50%, -50%) rotate(var(--spark-angle, 0deg)) translateX(0) scale(0.3); }
                                35% { opacity: 1; }
                                100% { opacity: 0; transform: translate(-50%, -50%) rotate(var(--spark-angle, 0deg)) translateX(86px) scale(0.65); } }
+  @keyframes skill-fx-fade { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.82); }
+                             22% { opacity: 1; }
+                             100% { opacity: 0; transform: translate(-50%, -50%) scale(1.08); } }
+  @keyframes skill-slash-flash { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
+                                 35% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+                                 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.3); } }
+  @keyframes skill-slash-ring { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.35); }
+                                40% { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+                                100% { opacity: 0; transform: translate(-50%, -50%) scale(1.45); } }
+  @keyframes skill-slash-spark { 0% { opacity: 0; transform: translate(-50%, -50%) rotate(var(--spark-angle, 0deg)) translateX(0) scale(0.4); }
+                                 35% { opacity: 1; }
+                                 100% { opacity: 0; transform: translate(-50%, -50%) rotate(var(--spark-angle, 0deg)) translateX(90px) scale(0.7); } }
+  @keyframes skill-slash-stroke { 0% { opacity: 0; transform: translate(-50%, -50%) rotate(calc(var(--skill-angle,0deg) + var(--stroke-offset,0deg))) scaleY(0.2) scaleX(0.6); }
+                                  35% { opacity: 1; transform: translate(-50%, -50%) rotate(calc(var(--skill-angle,0deg) + var(--stroke-offset,0deg) + var(--stroke-shift,0deg))) scaleY(1.25) scaleX(1.05); }
+                                  100% { opacity: 0; transform: translate(-50%, -50%) rotate(calc(var(--skill-angle,0deg) + var(--stroke-offset,0deg) + 22deg)) scaleY(0.35) scaleX(0.8); } }
+  @keyframes skill-claw-burst { 0% { opacity: 0.65; transform: translate(-50%, -50%) scale(0.35); }
+                                60% { opacity: 0.9; transform: translate(-50%, -50%) scale(1.05); }
+                                100% { opacity: 0; transform: translate(-50%, -50%) scale(1.4); } }
+  @keyframes skill-claw-scratch { 0% { opacity: 0; transform: translate(calc(-50% + var(--scratch-shift,0px)), -60%) scaleY(0.3); }
+                                   40% { opacity: 1; transform: translate(calc(-50% + var(--scratch-shift,0px)), 10%) scaleY(1.05); }
+                                   100% { opacity: 0; transform: translate(calc(-50% + var(--scratch-shift,0px)), 60%) scaleY(0.4); } }
+  @keyframes skill-claw-shard { 0% { opacity: 0; transform: translate(calc(-50% + var(--shard-drift,0px)), -30%) rotate(calc(var(--shard-rotate,0deg) - 24deg)) scale(0.45); }
+                                 45% { opacity: 1; transform: translate(calc(-50% + var(--shard-drift,0px)), 18%) rotate(calc(var(--shard-rotate,0deg))) scale(1.05); }
+                                 100% { opacity: 0; transform: translate(calc(-50% + var(--shard-drift,0px)), 70%) rotate(calc(var(--shard-rotate,0deg) + 14deg)) scale(0.6); } }
+  @keyframes skill-claw-servo { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.35) rotate(0deg); }
+                                 35% { opacity: 1; transform: translate(-50%, -50%) scale(1.0) rotate(40deg); }
+                                 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.25) rotate(90deg); } }
+  @keyframes skill-claw-servo-flare { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+                                       40% { opacity: 0.85; transform: translate(-50%, -50%) scale(1.0); }
+                                       100% { opacity: 0; transform: translate(-50%, -50%) scale(1.35); } }
+  @keyframes skill-claw-mecha-spark { 0% { opacity: 0; transform: translate(-50%, -50%) rotate(var(--spark-angle, 0deg)) translateX(0) scale(0.4); }
+                                      40% { opacity: 1; }
+                                      100% { opacity: 0; transform: translate(-50%, -50%) rotate(var(--spark-angle, 0deg)) translateX(92px) scale(0.7); } }
+  @keyframes skill-beam-muzzle { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.25); }
+                                 45% { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+                                 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.25); } }
+  @keyframes skill-beam-trail { 0% { opacity: 0; width: 0; }
+                                30% { opacity: 1; width: var(--skill-length, 140px); }
+                                100% { opacity: 0; width: var(--skill-length, 140px); } }
+  @keyframes skill-beam-flare { 0% { opacity: 0; transform: translateY(-50%) scale(0.4); }
+                                40% { opacity: 0.9; transform: translateY(-50%) scale(1.05); }
+                                100% { opacity: 0; transform: translateY(-50%) scale(1.4); } }
+  @keyframes skill-burst-ring { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+                                40% { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+                                100% { opacity: 0; transform: translate(-50%, -50%) scale(1.6); } }
+  @keyframes skill-burst-wave { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.25); }
+                                45% { opacity: 0.6; transform: translate(-50%, -50%) scale(1.05); }
+                                100% { opacity: 0; transform: translate(-50%, -50%) scale(1.5); } }
+  @keyframes skill-burst-core { 0% { opacity: 0.2; transform: translate(-50%, -50%) scale(0.8); }
+                                40% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+                                100% { opacity: 0; transform: translate(-50%, -50%) scale(1.2); } }
+  @keyframes skill-aura-halo { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+                                35% { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+                                100% { opacity: 0; transform: translate(-50%, -50%) scale(1.35); } }
+  @keyframes skill-aura-glyph { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+                                 35% { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+                                 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.12); } }
+  @keyframes skill-aura-pulse { 0% { opacity: 0.6; transform: scale(0.75); }
+                                 60% { opacity: 0.8; transform: scale(1.0); }
+                                 100% { opacity: 0; transform: scale(1.35); } }
+  @keyframes skill-lightning-glow { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.35); }
+                                    35% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+                                    100% { opacity: 0; transform: translate(-50%, -50%) scale(1.4); } }
+  @keyframes skill-lightning-bolt { 0% { opacity: 0; transform: translate(-50%, -50%) rotate(calc(var(--skill-angle,0deg) - 12deg)) scaleY(0.2); }
+                                   30% { opacity: 1; transform: translate(-50%, -50%) rotate(calc(var(--skill-angle,0deg) - 2deg)) scaleY(1.0); }
+                                   100% { opacity: 0; transform: translate(-50%, -50%) rotate(calc(var(--skill-angle,0deg) + 12deg)) scaleY(0.4); } }
+  @keyframes skill-rune-circle { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
+                                 35% { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+                                 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.2); } }
+  @keyframes skill-rune-spin { 0% { opacity: 0.6; transform: translate(-50%, -50%) rotate(0deg) scale(0.95); }
+                               100% { opacity: 0; transform: translate(-50%, -50%) rotate(220deg) scale(1.05); } }
+  @keyframes skill-rune-flare { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+                                40% { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+                                100% { opacity: 0; transform: translate(-50%, -50%) scale(1.2); } }
+  @keyframes skill-impact-shock { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
+                                  40% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+                                  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.45); } }
+  @keyframes skill-impact-dust { 0% { opacity: 0; transform: translate(-50%, -50%) scaleX(0.4); }
+                                 40% { opacity: 0.75; transform: translate(-50%, -50%) scaleX(1.0); }
+                                 100% { opacity: 0; transform: translate(-50%, -64%) scaleX(1.3); } }
+  @keyframes skill-impact-crack { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+                                  30% { opacity: 0.9; transform: translate(-50%, -50%) scale(0.9); }
+                                  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.2); } }
+  @keyframes skill-cascade-column { 0% { opacity: 0; height: 0; }
+                                    30% { opacity: 0.75; height: 100%; }
+                                    100% { opacity: 0; height: 100%; } }
+  @keyframes skill-cascade-drop { 0% { opacity: 0; transform: translate(-50%, -30%) scale(0.6); }
+                                   40% { opacity: 1; transform: translate(-50%, 20%) scale(1.0); }
+                                   100% { opacity: 0; transform: translate(-50%, 80%) scale(0.4); } }
+  @keyframes skill-spiral-spin { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3) rotate(0deg); }
+                                 40% { opacity: 1; transform: translate(-50%, -50%) scale(1.0) rotate(160deg); }
+                                 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.2) rotate(320deg); } }
+  @keyframes skill-spiral-center { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+                                   40% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+                                   100% { opacity: 0; transform: translate(-50%, -50%) scale(1.25); } }
   @keyframes fx-impact { 0%{ transform: translate(-50%,-50%) scale(0.6); opacity: 0; }
                          50%{ transform: translate(-50%,-50%) scale(1.1); opacity: 1; }
                          100%{ transform: translate(-50%,-50%) scale(0.8); opacity: 0; } }
@@ -629,6 +863,275 @@ function showAttackFx({attacker=null, target=null, cell=null, point=null, trueDa
   return node;
 }
 function showHitFX(r,c, opts={}){ return showAttackFx({cell:{r,c}, ...opts}); }
+function resolveSkillFxAnchor({target=null, cell=null, point=null}){
+  let anchor = null;
+  if(target){
+    if(target.id){ anchor = getUnitCenterPoint(target); }
+    else { anchor = resolveFxAnchor(target); }
+  }
+  if(!anchor && cell){ anchor = resolveFxAnchor(cell); }
+  if(!anchor && point){ anchor = resolveFxAnchor(point); }
+  return anchor;
+}
+function computeSkillFxAngle(anchor, attacker, fallbackAngle=null){
+  if(fallbackAngle!==null){ return fallbackAngle; }
+  if(attacker){
+    const origin = getUnitCenterPoint(attacker);
+    if(origin){ return Math.atan2(anchor.y - origin.y, anchor.x - origin.x) * 180 / Math.PI; }
+  }
+  return 0;
+}
+function makeSkillFxNode(baseClass, html=''){ const node = makeEl(`skill-fx ${baseClass}`.trim(), html); return node; }
+function attachSkillFx(node, anchor){ if(!anchor) return null; fxAtPoint(anchor.x, anchor.y, node); return node; }
+function buildSlashSkillFx({anchor, angle, config}){
+  const node = makeSkillFxNode('slash');
+  node.style.setProperty('--skill-primary', config.primary || '#fff');
+  node.style.setProperty('--skill-secondary', config.secondary || 'rgba(255,255,255,0.65)');
+  node.style.setProperty('--skill-spark', config.spark || 'rgba(255,255,255,0.9)');
+  node.dataset.variant = config.variant || 'default';
+  const slashCount = Math.max(1, config.slashes || 2);
+  let slashes = '';
+  for(let i=0;i<slashCount;i++){ slashes += `<div class="stroke" data-index="${i}"></div>`; }
+  node.innerHTML = `
+    <div class="flash"></div>
+    <div class="ring"></div>
+    <div class="sparks">
+      <div class="spark left"></div>
+      <div class="spark right"></div>
+    </div>
+    <div class="strokes">${slashes}</div>
+  `;
+  node.style.setProperty('--skill-angle', `${angle}deg`);
+  onAnimEndRemove(node, config.duration || 600);
+  return attachSkillFx(node, anchor);
+}
+function buildClawSkillFx({anchor, angle, config}){
+  const node = makeSkillFxNode('claw');
+  node.style.setProperty('--skill-primary', config.primary || '#f0d088');
+  node.style.setProperty('--skill-secondary', config.secondary || '#ffefa9');
+  node.dataset.variant = config.variant || 'default';
+  const scratchCount = Math.max(3, config.scratches || 3);
+  const scratchSpacing = config.spacing ?? 16;
+  const scratchDelay = config.delayStep ?? 30;
+  const scratchBaseDelay = config.delayBase ?? 0;
+  let scratchHtml='';
+  for(let i=0;i<scratchCount;i++){
+    scratchHtml += `<div class="scratch" data-index="${i}"><span></span></div>`;
+  }
+  const shardCount = Math.max(0, config.shards|0);
+  let shardHtml='';
+  for(let i=0;i<shardCount;i++){
+    shardHtml += `<div class="shard" data-index="${i}"></div>`;
+  }
+  const mechaExtras = config.variant==='mecha'
+    ? `<div class="servo-ring"></div><div class="servo-flare"></div><div class="mecha-sparks"><span class="spark one"></span><span class="spark two"></span></div>`
+    : '';
+  node.innerHTML = `<div class="burst"></div>${mechaExtras}${shardHtml}${scratchHtml}`;
+  node.style.setProperty('--skill-angle', `${angle}deg`);
+  const scratchEls = node.querySelectorAll('.scratch');
+  const scratchPivot = (scratchCount - 1) / 2;
+  scratchEls.forEach((el,i)=>{
+    const offset = (i - scratchPivot) * scratchSpacing;
+    el.style.setProperty('--scratch-shift', `${offset}px`);
+    const delay = scratchBaseDelay + i * scratchDelay;
+    if(delay){ el.style.animationDelay = `${delay}ms`; }
+  });
+  const shardEls = node.querySelectorAll('.shard');
+  const shardPivot = shardCount > 0 ? (shardCount - 1) / 2 : 0;
+  const shardSpread = config.shardSpread ?? 22;
+  const shardArc = config.shardArc ?? 18;
+  const shardStart = config.shardStartAngle ?? -26;
+  shardEls.forEach((el,i)=>{
+    const drift = (i - shardPivot) * shardSpread;
+    const rot = shardStart + (i - shardPivot) * shardArc;
+    el.style.setProperty('--shard-drift', `${drift}px`);
+    el.style.setProperty('--shard-rotate', `${rot}deg`);
+    el.style.animationDelay = `${90 + i * 45}ms`;
+  });
+  onAnimEndRemove(node, config.duration || 640);
+  return attachSkillFx(node, anchor);
+}
+function buildBeamSkillFx({anchor, angle, config}){
+  const node = makeSkillFxNode('beam');
+  node.style.setProperty('--skill-primary', config.primary || '#ffd77f');
+  node.style.setProperty('--skill-secondary', config.secondary || '#fff2c2');
+  node.style.setProperty('--skill-glow', config.glow || 'rgba(255,255,255,0.8)');
+  node.dataset.variant = config.variant || 'default';
+  node.innerHTML = `
+    <div class="muzzle"></div>
+    <div class="trail"></div>
+    <div class="flare"></div>
+  `;
+  node.style.setProperty('--skill-angle', `${angle}deg`);
+  node.style.setProperty('--skill-length', `${config.length || 120}px`);
+  onAnimEndRemove(node, config.duration || 420);
+  return attachSkillFx(node, anchor);
+}
+function buildBurstSkillFx({anchor, angle, config}){
+  const node = makeSkillFxNode('burst');
+  node.style.setProperty('--skill-primary', config.primary || '#8fd3ff');
+  node.style.setProperty('--skill-secondary', config.secondary || '#dff4ff');
+  node.style.setProperty('--skill-spark', config.spark || '#ffffff');
+  node.dataset.variant = config.variant || 'default';
+  node.innerHTML = `
+    <div class="ring"></div>
+    <div class="wave"></div>
+    <div class="core"></div>
+  `;
+  onAnimEndRemove(node, config.duration || 680);
+  return attachSkillFx(node, anchor);
+}
+function buildAuraSkillFx({anchor, angle, config}){
+  const node = makeSkillFxNode('aura');
+  node.style.setProperty('--skill-primary', config.primary || '#ffb86c');
+  node.style.setProperty('--skill-secondary', config.secondary || '#ffe9c7');
+  node.style.setProperty('--skill-outline', config.outline || 'rgba(255,255,255,0.75)');
+  node.dataset.variant = config.variant || 'default';
+  node.innerHTML = `
+    <div class="halo"></div>
+    <div class="glyph">${config.glyph || ''}</div>
+    <div class="particles"></div>
+  `;
+  onAnimEndRemove(node, config.duration || 900);
+  return attachSkillFx(node, anchor);
+}
+function buildLightningSkillFx({anchor, angle, config}){
+  const node = makeSkillFxNode('lightning');
+  node.style.setProperty('--skill-primary', config.primary || '#ff9cff');
+  node.style.setProperty('--skill-secondary', config.secondary || '#ffe6ff');
+  const bolts = Math.max(2, config.bolts || 3);
+  let html='';
+  for(let i=0;i<bolts;i++){
+    html += `<div class="bolt" data-index="${i}"></div>`;
+  }
+  node.innerHTML = `<div class="glow"></div>${html}`;
+  node.style.setProperty('--skill-angle', `${angle}deg`);
+  onAnimEndRemove(node, config.duration || 560);
+  return attachSkillFx(node, anchor);
+}
+function buildRuneSkillFx({anchor, angle, config}){
+  const node = makeSkillFxNode('rune');
+  node.style.setProperty('--skill-primary', config.primary || '#b37bff');
+  node.style.setProperty('--skill-secondary', config.secondary || '#f0ddff');
+  node.dataset.variant = config.variant || 'default';
+  node.innerHTML = `
+    <div class="sigil"></div>
+    <div class="orbit"></div>
+    <div class="flare"></div>
+  `;
+  onAnimEndRemove(node, config.duration || 740);
+  return attachSkillFx(node, anchor);
+}
+function buildImpactSkillFx({anchor, angle, config}){
+  const node = makeSkillFxNode('impact');
+  node.style.setProperty('--skill-primary', config.primary || '#ff6f6f');
+  node.style.setProperty('--skill-secondary', config.secondary || '#ffd3d3');
+  node.innerHTML = `
+    <div class="shock"></div>
+    <div class="dust"></div>
+    <div class="cracks"></div>
+  `;
+  onAnimEndRemove(node, config.duration || 780);
+  return attachSkillFx(node, anchor);
+}
+function buildCascadeSkillFx({anchor, angle, config}){
+  const node = makeSkillFxNode('cascade');
+  node.style.setProperty('--skill-primary', config.primary || '#72e7ff');
+  node.style.setProperty('--skill-secondary', config.secondary || '#c6f7ff');
+  const droplets = Math.max(3, config.droplets || 4);
+  let html='';
+  for(let i=0;i<droplets;i++){
+    html += `<div class="drop" data-index="${i}"></div>`;
+  }
+  node.innerHTML = `<div class="column"></div>${html}`;
+  onAnimEndRemove(node, config.duration || 800);
+  return attachSkillFx(node, anchor);
+}
+function buildSpiralSkillFx({anchor, angle, config}){
+  const node = makeSkillFxNode('spiral');
+  node.style.setProperty('--skill-primary', config.primary || '#f5f56b');
+  node.style.setProperty('--skill-secondary', config.secondary || '#fff9c4');
+  node.innerHTML = `
+    <div class="swirl one"></div>
+    <div class="swirl two"></div>
+    <div class="center"></div>
+  `;
+  onAnimEndRemove(node, config.duration || 760);
+  return attachSkillFx(node, anchor);
+}
+const SKILL_FX_BUILDERS = {
+  slash: buildSlashSkillFx,
+  claw: buildClawSkillFx,
+  beam: buildBeamSkillFx,
+  burst: buildBurstSkillFx,
+  aura: buildAuraSkillFx,
+  lightning: buildLightningSkillFx,
+  rune: buildRuneSkillFx,
+  impact: buildImpactSkillFx,
+  cascade: buildCascadeSkillFx,
+  spiral: buildSpiralSkillFx,
+};
+const SKILL_FX_CONFIG = {
+  'adora:短匕轻挥':        {type:'slash', primary:'#ff82b6', secondary:'rgba(255,158,206,0.55)', spark:'#ffe5f5', slashes:2},
+  'adora:呀！你不要靠近我呀！！': {type:'spiral', primary:'#ff9f6a', secondary:'#ffe0c1'},
+  'adora:自制粉色迷你电击装置': {type:'lightning', primary:'#ff87ff', secondary:'#ffd7ff', bolts:4},
+  'adora:略懂的医术！':     {type:'aura', primary:'#75e6a7', secondary:'#c6ffde', outline:'rgba(255,255,255,0.85)', glyph:'✚'},
+  'adora:加油哇！':         {type:'aura', primary:'#ffcf74', secondary:'#ffe9bb', glyph:'★'},
+  'adora:只能靠你了。。':   {type:'impact', primary:'#ff6161', secondary:'#ffd6d6'},
+  'adora:枪击':             {type:'beam', primary:'#ffd780', secondary:'#fff1c2', glow:'rgba(255,255,255,0.9)', variant:'adora'},
+  'dario:机械爪击':         {type:'claw', primary:'#f6c55b', secondary:'#fff3c7', scratches:6, spacing:18, delayStep:26, shards:6, shardSpread:18, shardArc:16, shardStartAngle:-34, variant:'mecha'},
+  'dario:枪击':             {type:'beam', primary:'#9ee0ff', secondary:'#dcf6ff', glow:'rgba(255,255,255,0.85)', variant:'dario'},
+  'dario:迅捷步伐':         {type:'spiral', primary:'#7fe8ff', secondary:'#d6f8ff'},
+  'dario:拿来吧你！':       {type:'claw', primary:'#ffa56a', secondary:'#ffd7b9', scratches:5},
+  'dario:先苦后甜':         {type:'aura', primary:'#c9a4ff', secondary:'#eedcff', glyph:'↻'},
+  'karma:沙包大的拳头':     {type:'slash', primary:'#ff9059', secondary:'rgba(255,192,160,0.7)', spark:'#fff0e4', slashes:1},
+  'karma:枪击':             {type:'beam', primary:'#f38fff', secondary:'#ffd9ff', glow:'rgba(255,255,255,0.85)', variant:'karma'},
+  'karma:都听你的':         {type:'spiral', primary:'#ffdd77', secondary:'#fff1bd'},
+  'karma:嗜血之握':         {type:'claw', primary:'#d95ffb', secondary:'#f0b8ff', scratches:3},
+  'karma:深呼吸':           {type:'aura', primary:'#7ecfff', secondary:'#d7f1ff', glyph:'息'},
+  'haz:鱼叉穿刺':           {type:'beam', primary:'#5fd9ff', secondary:'#c5f2ff', glow:'rgba(255,255,255,0.8)', variant:'harpoon'},
+  'haz:深海猎杀':           {type:'slash', primary:'#4ecdf2', secondary:'rgba(170,236,255,0.6)', spark:'#e3fbff', slashes:3},
+  'haz:猎神之叉':           {type:'slash', primary:'#ffe373', secondary:'rgba(255,233,152,0.7)', spark:'#fff6c4', slashes:2},
+  'haz:锁链缠绕':           {type:'rune', primary:'#8ed8ff', secondary:'#dff3ff', variant:'chain'},
+  'haz:鲸落':               {type:'cascade', primary:'#8ae8ff', secondary:'#d5f9ff', droplets:6},
+  'haz:怨念滋生':           {type:'rune', primary:'#b56fff', secondary:'#eed4ff', variant:'curse'},
+  'haz:付出代价':           {type:'slash', primary:'#ff6d6d', secondary:'rgba(255,158,158,0.7)', spark:'#ffd3d3', slashes:4},
+  'haz:仇恨之叉':           {type:'slash', primary:'#ffa365', secondary:'rgba(255,202,153,0.7)', spark:'#ffe7d4', slashes:4},
+  'haz:怨念滋生·恐惧':      {type:'rune', primary:'#9c60ff', secondary:'#e4ceff', variant:'fear'},
+  'haz:锁链缠绕·增益':      {type:'aura', primary:'#74b2ff', secondary:'#cce0ff', glyph:'链'},
+  'haz:锁链缠绕·反击':      {type:'burst', primary:'#9ad9ff', secondary:'#e3f4ff'},
+  'katz:矛刺':              {type:'beam', primary:'#ff886d', secondary:'#ffd5c6', variant:'spear'},
+  'katz:链式鞭击':          {type:'slash', primary:'#ff586f', secondary:'rgba(255,163,177,0.7)', spark:'#ffd2da', slashes:3},
+  'katz:反复鞭尸':          {type:'slash', primary:'#ff4d9d', secondary:'rgba(255,164,210,0.7)', spark:'#ffd4ec', slashes:5},
+  'katz:终焉礼炮':          {type:'beam', primary:'#ff6f3f', secondary:'#ffc8aa', variant:'cannon', length:180},
+  'katz:必须抹杀一切。。':  {type:'rune', primary:'#ff6666', secondary:'#ffd1d1', variant:'obliterate'},
+  'tusk:骨盾猛击':          {type:'impact', primary:'#d2c4ff', secondary:'#f1ebff'},
+  'tusk:来自深海的咆哮':    {type:'burst', primary:'#84dfff', secondary:'#d3f4ff'},
+  'tusk:战争堡垒':          {type:'aura', primary:'#a0b7ff', secondary:'#dde5ff', glyph:'堡'},
+  'tusk:牛鲨冲撞':          {type:'impact', primary:'#ffe483', secondary:'#fff3bd'},
+  'tusk:拼尽全力保卫队长':  {type:'aura', primary:'#ff9e7f', secondary:'#ffd0c2', glyph:'盾'},
+  'neyla:迅捷射击':         {type:'beam', primary:'#ff7dce', secondary:'#ffd6f0', variant:'rapid'},
+  'neyla:穿刺狙击':         {type:'beam', primary:'#ffdf7c', secondary:'#fff0c1', variant:'sniper', length:200},
+  'neyla:双钩牵制':         {type:'claw', primary:'#ff9a9a', secondary:'#ffd8d8', scratches:2},
+  'neyla:终末之影':         {type:'rune', primary:'#ff9df2', secondary:'#ffd9fa', variant:'doom'},
+  'neyla:执行……':          {type:'beam', primary:'#b3a4ff', secondary:'#e8e2ff', variant:'execution', length:140},
+  'kyn:迅影突刺':           {type:'slash', primary:'#8ef9ff', secondary:'rgba(206,253,255,0.7)', spark:'#f0feff', slashes:2},
+  'kyn:死亡宣告':           {type:'rune', primary:'#ff8383', secondary:'#ffd6d6', variant:'doom'},
+  'kyn:割喉飞刃':           {type:'slash', primary:'#ff5f9f', secondary:'rgba(255,176,212,0.7)', spark:'#ffdff0', slashes:3},
+  'kyn:影杀之舞':           {type:'burst', primary:'#b57dff', secondary:'#e8d6ff', variant:'dance'},
+  'kyn:自我了断。。':       {type:'impact', primary:'#7d95ff', secondary:'#d5deff'},
+};
+function showSkillFx(skillKey, ctx={}){
+  if(!skillKey){ return showAttackFx(ctx); }
+  const config = SKILL_FX_CONFIG[skillKey];
+  if(!config){ return showAttackFx(ctx); }
+  const builder = SKILL_FX_BUILDERS[config.type];
+  if(!builder){ return showAttackFx(ctx); }
+  const anchor = resolveSkillFxAnchor(ctx);
+  if(!anchor){ return null; }
+  const angle = computeSkillFxAngle(anchor, ctx.attacker, typeof ctx.angle === 'number' ? ctx.angle : null);
+  return builder({anchor, angle, config, ctx});
+}
 function showDeathFx(u){
   if(!u || !battleAreaEl) return;
   const node = makeEl('fx-death');
@@ -1155,7 +1658,20 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
   const heavyHit = trueDamage || totalImpact >= 40 || finalHp >= Math.max(18, Math.round(u.maxHp * 0.3));
   appendLog(`${reason} (-${finalHp} HP, -${finalSp} SP)`);
   cameraShake(heavyHit ? 'heavy' : 'normal');
-  showAttackFx({attacker: source, target: u, trueDamage, heavy: heavyHit});
+  const skillFxKey = opts.skillFx || (opts.skillName && source ? `${source.id}:${opts.skillName}` : null);
+  if(skillFxKey){
+    const fxCtx = Object.assign({}, opts.skillFxCtx || {});
+    if(fxCtx.attacker === undefined) fxCtx.attacker = source;
+    if(fxCtx.target === undefined) fxCtx.target = u;
+    if(fxCtx.cell === undefined && opts.fxCell) fxCtx.cell = opts.fxCell;
+    if(fxCtx.point === undefined && opts.fxPoint) fxCtx.point = opts.fxPoint;
+    if(opts.skillFxAngle !== undefined) fxCtx.angle = opts.skillFxAngle;
+    fxCtx.trueDamage = trueDamage;
+    fxCtx.heavy = heavyHit;
+    showSkillFx(skillFxKey, fxCtx);
+  } else {
+    showAttackFx({attacker: source, target: u, trueDamage, heavy: heavyHit});
+  }
   showDamageFloat(u, finalHp, finalSp);
   pulseCell(u.r, u.c);
   if(died){ showDeathFx(u); }
@@ -1166,6 +1682,7 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
     if(src && u.chainShieldTurns>0 && u.chainShieldRetaliate>0){
       u.chainShieldRetaliate = 0;
       applySpDamage(src, 10, {sourceId: u.id, reason:`锁链缠绕反击：${src.name} SP -{delta}`});
+      showSkillFx('haz:锁链缠绕·反击',{target:src});
     }
   }
 
@@ -1215,7 +1732,7 @@ function playerGunExec(u, desc){
     const tu = getUnitAt(cell.r,cell.c);
     showTrail(muzzle.r, muzzle.c, cell.r, cell.c);
     if(tu && tu.hp>0 && tu.side !== u.side){
-      damageUnit(tu.id,10,5,`${u.name} 的 枪击 命中 ${tu.name}`, u.id);
+      damageUnit(tu.id,10,5,`${u.name} 的 枪击 命中 ${tu.name}`, u.id,{skillFx:`${u.id}:枪击`});
       u.dmgDone += 10;
     }
   }
@@ -1225,13 +1742,14 @@ function adoraDagger(u,target){
   if(!target || target.side===u.side){ appendLog('短匕轻挥 目标无效'); return; }
   const dmg = calcOutgoingDamage(u,10,target,'短匕轻挥');
   cameraFocusOnCell(target.r, target.c);
-  damageUnit(target.id, dmg, 5, `${u.name} 用 短匕轻挥 攻击 ${target.name}`, u.id);
+  damageUnit(target.id, dmg, 5, `${u.name} 用 短匕轻挥 攻击 ${target.name}`, u.id,{skillFx:'adora:短匕轻挥'});
   u.dmgDone += dmg; unitActed(u);
 }
 function adoraPanicMove(u, payload){
   const dest = payload && payload.moveTo; if(!dest){ appendLog('无效的目的地'); return; }
   cameraFocusOnCell(dest.r, dest.c); showTrail(u.r,u.c,dest.r,dest.c);
   u.r=dest.r; u.c=dest.c; pulseCell(u.r,u.c);
+  showSkillFx('adora:呀！你不要靠近我呀！！',{target:u});
   for(const d of Object.keys(DIRS)){
     const cell = forwardCellAt(u,d,1); if(!cell) continue;
     const t = getUnitAt(cell.r,cell.c);
@@ -1242,7 +1760,7 @@ function adoraPanicMove(u, payload){
 function adoraZap(u,target){
   if(!target || target.side===u.side){ appendLog('电击装置 目标无效'); return; }
   cameraFocusOnCell(target.r, target.c);
-  damageUnit(target.id,10,15,`${u.name} 自制粉色迷你电击装置 命中 ${target.name}`, u.id);
+  damageUnit(target.id,10,15,`${u.name} 自制粉色迷你电击装置 命中 ${target.name}`, u.id,{skillFx:'adora:自制粉色迷你电击装置'});
   applyStunOrStack(target, 1, {reason:'电击装置'});
   addStatusStacks(target,'paralyzed',1,{label:'恐惧', type:'debuff'});
   appendLog(`${target.name} 下回合 -1 步`);
@@ -1254,6 +1772,7 @@ function adoraCheer(u, aim){
   if(t.status.jixueStacks>0){ appendLog(`${t.name} 已经处于“鸡血”状态`); return; }
   updateStatusStacks(t,'jixueStacks',1,{label:'鸡血', type:'buff'});
   pulseCell(t.r,t.c);
+  showSkillFx('adora:加油哇！',{target:t});
   appendLog(`${u.name} 对 ${t.name} 使用 加油哇！：赋予 1 层“鸡血”`);
   unitActed(u);
 }
@@ -1261,19 +1780,21 @@ function darioClaw(u,target){
   if(!target || target.side===u.side){ appendLog('机械爪击 目标无效'); return; }
   const dmg = calcOutgoingDamage(u,15,target,'机械爪击');
   cameraFocusOnCell(target.r, target.c);
-  damageUnit(target.id, dmg, 0, `${u.name} 发动 机械爪击 ${target.name}`, u.id);
+  damageUnit(target.id, dmg, 0, `${u.name} 发动 机械爪击 ${target.name}`, u.id,{skillFx:'dario:机械爪击'});
   u.dmgDone += dmg; unitActed(u);
 }
 function darioSwiftMove(u, payload){
   const dest = payload && payload.moveTo; if(!dest){ appendLog('无效的目的地'); return; }
   cameraFocusOnCell(dest.r, dest.c); showTrail(u.r,u.c,dest.r,dest.c);
   u.r=dest.r; u.c=dest.c; pulseCell(u.r,u.c);
+  showSkillFx('dario:迅捷步伐',{target:u});
   const enemies = Object.values(units).filter(x=>x.side!==u.side && x.hp>0);
   if(enemies.length){
     let target=null, best=1e9;
     for(const e of enemies){ const d=mdist(u,e); if(d<best){best=d; target=e;} }
     const reduced = applySpDamage(target, 5, {sourceId:u.id});
     appendLog(`${target.name} SP -${reduced}（迅捷步伐）`);
+    showSkillFx('dario:迅捷步伐',{target:target});
   }
   unitActed(u);
 }
@@ -1299,7 +1820,7 @@ function darioPull(u, targetOrDesc){
     }
   }
   const dmg = calcOutgoingDamage(u,20,target,'拿来吧你！');
-  damageUnit(target.id, dmg, 0, `${u.name} 的 拿来吧你！ 命中 ${target.name}`, u.id);
+  damageUnit(target.id, dmg, 0, `${u.name} 的 拿来吧你！ 命中 ${target.name}`, u.id,{skillFx:'dario:拿来吧你！'});
   applyStunOrStack(target, 1, {reason:'拉扯冲击'});
   const reduced = applySpDamage(target, 15, {sourceId: u.id});
   appendLog(`${target.name} SP -${reduced}`);
@@ -1308,15 +1829,17 @@ function darioPull(u, targetOrDesc){
 function darioSweetAfterBitter(u){
   playerBonusStepsNextTurn += 4;
   appendLog(`${u.name} 使用 先苦后甜：下个玩家回合 +4 步`);
+  showSkillFx('dario:先苦后甜',{target:u});
   unitActed(u);
 }
 function adoraDepend(u, aim){
   const t = getUnitAt(aim.r, aim.c);
   if(!t || t.side!==u.side){ appendLog('只能靠你了。。 目标无效'); return; }
   if(t.status.dependStacks>0){ appendLog(`${t.name} 已经处于“依赖”状态`); return; }
-  damageUnit(u.id, 25, 0, `${u.name} 牺牲自身 25 HP`, null, {trueDamage:true, ignoreJixue:true, ignoreDepend:true});
+  damageUnit(u.id, 25, 0, `${u.name} 牺牲自身 25 HP`, null, {trueDamage:true, ignoreJixue:true, ignoreDepend:true, skillFx:'adora:只能靠你了。。', skillFxCtx:{target:u}});
   updateStatusStacks(t,'dependStacks',1,{label:'依赖', type:'buff'});
   pulseCell(t.r,t.c);
+  showSkillFx('adora:只能靠你了。。',{target:t});
   appendLog(`${u.name} 对 ${t.name} 施加“依赖”：下一次攻击造成真实伤害并清空自身SP`);
   unitActed(u);
 }
@@ -1324,6 +1847,7 @@ function karmaObeyMove(u, payload){
   const dest = payload && payload.moveTo; if(!dest){ appendLog('无效的目的地'); return; }
   cameraFocusOnCell(dest.r, dest.c); showTrail(u.r,u.c,dest.r,dest.c);
   u.r = dest.r; u.c = dest.c; pulseCell(u.r,u.c);
+  showSkillFx('karma:都听你的',{target:u});
   if(u.consecAttacks > 0){ appendLog(`${u.name} 的连击被打断（移动）`); u.consecAttacks = 0; }
   u.sp = Math.min(u.maxSp, u.sp + 5); u._spBroken = (u.sp<=0); showGainFloat(u,0,5);
   unitActed(u);
@@ -1337,9 +1861,9 @@ function karmaGrip(u,target){
   else if(target.id==='kyn' || target.id==='neyla') fixed = 100;
   if(fixed!==null){
     const deal = Math.min(target.hp, fixed);
-    damageUnit(target.id, deal, 0, `${u.name} 嗜血之握 重创 ${target.name}`, u.id, {ignoreToughBody:true, ignoreTuskWall:true});
+    damageUnit(target.id, deal, 0, `${u.name} 嗜血之握 重创 ${target.name}`, u.id, {ignoreToughBody:true, ignoreTuskWall:true, skillFx:'karma:嗜血之握'});
   } else {
-    damageUnit(target.id, target.hp, 0, `${u.name} 嗜血之握 处决 ${target.name}`, u.id, {ignoreToughBody:true});
+    damageUnit(target.id, target.hp, 0, `${u.name} 嗜血之握 处决 ${target.name}`, u.id, {ignoreToughBody:true, skillFx:'karma:嗜血之握'});
   }
   unitActed(u);
 }
@@ -1377,7 +1901,7 @@ function karmaPunch(u,target){
   if(!target || target.side===u.side){ appendLog('沙包大的拳头 目标无效'); return; }
   const dmg = calcOutgoingDamage(u, 15, target, '沙包大的拳头');
   cameraFocusOnCell(target.r, target.c);
-  damageUnit(target.id, dmg, 0, `${u.name} 出拳 ${target.name}`, u.id);
+  damageUnit(target.id, dmg, 0, `${u.name} 出拳 ${target.name}`, u.id,{skillFx:'karma:沙包大的拳头'});
   u.dmgDone += dmg; u.consecAttacks = (u.consecAttacks||0)+1; unitActed(u);
 }
 
@@ -1398,7 +1922,7 @@ async function katz_RepeatedWhip(u, desc){
     for(const c of cells){
       const tu=getUnitAt(c.r,c.c);
       if(tu && tu.side!=='enemy' && !hitSet1.has(tu.id)){
-        damageUnit(tu.id, 10, 0, `${u.name} 反复鞭尸·第${cycle}次 第一鞭 命中 ${tu.name}`, u.id);
+        damageUnit(tu.id, 10, 0, `${u.name} 反复鞭尸·第${cycle}次 第一鞭 命中 ${tu.name}`, u.id,{skillFx:'katz:反复鞭尸'});
         hitSet1.add(tu.id); hits1++;
       }
     }
@@ -1407,7 +1931,7 @@ async function katz_RepeatedWhip(u, desc){
     for(const c of cells){
       const tu=getUnitAt(c.r,c.c);
       if(tu && tu.side!=='enemy' && !hitSet2.has(tu.id)){
-        damageUnit(tu.id, 15, 0, `${u.name} 反复鞭尸·第${cycle}次 第二鞭 重击 ${tu.name}`, u.id);
+        damageUnit(tu.id, 15, 0, `${u.name} 反复鞭尸·第${cycle}次 第二鞭 重击 ${tu.name}`, u.id,{skillFx:'katz:反复鞭尸'});
         hitSet2.add(tu.id); hits2++;
       }
     }
@@ -1430,7 +1954,7 @@ async function katz_EndSalvo(u, desc){
   for(const c of cells){
     const tu=getUnitAt(c.r,c.c);
     if(tu && tu.side!=='enemy' && !set.has(tu.id)){
-      damageUnit(tu.id, 35, 0, `${u.name} 终焉礼炮 命中 ${tu.name}`, u.id, {ignoreCover:true});
+      damageUnit(tu.id, 35, 0, `${u.name} 终焉礼炮 命中 ${tu.name}`, u.id, {ignoreCover:true, skillFx:'katz:终焉礼炮'});
       set.add(tu.id); hits++;
     }
   }
@@ -1450,6 +1974,7 @@ function adoraFieldMedic(u, aim){
   const stacks = addStatusStacks(t,'recoverStacks',1,{label:'恢复', type:'buff'});
   appendLog(`${u.name} 对 ${t.name} 使用 略懂的医术！：+20HP +15SP，并赋予“恢复”(${stacks})`);
   showGainFloat(t,t.hp-hpBefore,t.sp-spBefore);
+  showSkillFx('adora:略懂的医术！',{target:t});
   unitActed(u);
 }
 // Karma：深呼吸（25级，白色）
@@ -1459,6 +1984,7 @@ function karmaDeepBreath(u){
   u.hp = Math.min(u.maxHp, u.hp + 10);
   appendLog(`${u.name} 使用 深呼吸：SP回满，+10HP（被动+10%仅在手牌中未被使用时生效）`);
   showGainFloat(u,u.hp-hpBefore,u.sp-spBefore);
+  showSkillFx('karma:深呼吸',{target:u});
   unitActed(u);
 }
 
@@ -1469,7 +1995,7 @@ async function haz_HarpoonStab(u, target){
   await telegraphThenImpact(cells);
   const dmg = calcOutgoingDamage(u,20,target,'鱼叉穿刺');
   cameraFocusOnCell(target.r, target.c);
-  damageUnit(target.id, dmg, 0, `${u.name} 鱼叉穿刺 命中 ${target.name}`, u.id);
+  damageUnit(target.id, dmg, 0, `${u.name} 鱼叉穿刺 命中 ${target.name}`, u.id,{skillFx:'haz:鱼叉穿刺'});
   u.sp = Math.min(u.maxSp, u.sp + 10); u._spBroken = (u.sp<=0); showGainFloat(u,0,10);
   if(!hazMarkedTargetId){ hazMarkedTargetId = target.id; appendLog(`猎杀标记：${target.name} 被标记，七海对其伤害 +15%`); }
   if(Math.random() < 0.4){
@@ -1477,6 +2003,7 @@ async function haz_HarpoonStab(u, target){
     appendLog(`${target.name} SP -${reduced}（恐惧）`);
     addStatusStacks(target,'paralyzed',1,{label:'恐惧', type:'debuff'});
     appendLog(`${target.name} 下回合 -1 步`);
+    showSkillFx('haz:怨念滋生·恐惧',{target:target});
   }
   u.dmgDone += dmg; unitActed(u);
 }
@@ -1489,7 +2016,7 @@ async function haz_DeepHunt(u, desc){
   if(!target){ appendLog('深海猎杀 未找到目标'); return; }
   const dmg = calcOutgoingDamage(u,25,target,'深海猎杀');
   cameraFocusOnCell(target.r, target.c);
-  damageUnit(target.id, dmg, 0, `${u.name} 深海猎杀 命中 ${target.name}`, u.id);
+  damageUnit(target.id, dmg, 0, `${u.name} 深海猎杀 命中 ${target.name}`, u.id,{skillFx:'haz:深海猎杀'});
   const front = forwardCellAt(u, dir, 1);
   if(front && !getUnitAt(front.r, front.c)){ target.r = front.r; target.c = front.c; pulseCell(front.r, front.c); appendLog(`${target.name} 被拉至面前一格`); }
   const reduced = applySpDamage(target,10,{sourceId:u.id});
@@ -1507,7 +2034,7 @@ async function haz_GodFork(u, target){
   let dmg = calcOutgoingDamage(u,20,target,'猎神之叉');
   if(Math.random()<0.5){ dmg = Math.round(dmg*2.0); appendLog('猎神之叉 暴怒加成 x2.0'); }
   cameraFocusOnCell(target.r, target.c);
-  damageUnit(target.id, dmg, 15, `${u.name} 猎神之叉 重击 ${target.name}`, u.id);
+  damageUnit(target.id, dmg, 15, `${u.name} 猎神之叉 重击 ${target.name}`, u.id,{skillFx:'haz:猎神之叉'});
   const bleedStacks = Math.max(target.status.bleed||0, 2);
   updateStatusStacks(target,'bleed', bleedStacks,{label:'流血', type:'debuff'});
   appendLog(`${target.name} 附加流血（2回合，每回合 -5%最大HP）`);
@@ -1517,12 +2044,14 @@ async function haz_GodFork(u, target){
 function haz_ChainShield(u){
   u.chainShieldTurns = 2; u.chainShieldRetaliate = 1;
   appendLog(`${u.name} 锁链缠绕：2回合内伤害-40%，下次被打反击 10SP`);
+  showSkillFx('haz:锁链缠绕',{target:u});
   for(const id in units){
     const v=units[id];
     if(v.team==='seven' && v.hp>0){
       v.sp = Math.min(v.maxSp, v.sp+5);
       v._spBroken = (v.sp<=0);
       showGainFloat(v,0,5);
+      showSkillFx('haz:锁链缠绕·增益',{target:v});
     }
   }
   unitActed(u);
@@ -1534,7 +2063,7 @@ async function haz_WhaleFall(u){
   for(const c of cells){
     const tu = getUnitAt(c.r,c.c);
     if(tu && tu.side!=='enemy' && !set.has(tu.id)){
-      damageUnit(tu.id, 50, 20, `${u.name} 鲸落 轰击 ${tu.name}`, u.id, {ignoreCover:true});
+      damageUnit(tu.id, 50, 20, `${u.name} 鲸落 轰击 ${tu.name}`, u.id, {ignoreCover:true, skillFx:'haz:鲸落'});
       addStatusStacks(tu,'paralyzed',1,{label:'恐惧', type:'debuff'});
       set.add(tu.id); hits++;
     }
@@ -1549,14 +2078,14 @@ async function haz_PayThePrice(u, desc){
   const L1 = range_forward_n(u,3,dir);
   await telegraphThenImpact(L1);
   let h1=0;
-  for(const c of L1){ const tu=getUnitAt(c.r,c.c); showTrail(u.r,u.c,c.r,c.c); if(tu && tu.side!=='enemy'){ damageUnit(tu.id,15,0,`${u.name} 付出代价·前刺 命中 ${tu.name}`, u.id); h1++; } }
+  for(const c of L1){ const tu=getUnitAt(c.r,c.c); showTrail(u.r,u.c,c.r,c.c); if(tu && tu.side!=='enemy'){ damageUnit(tu.id,15,0,`${u.name} 付出代价·前刺 命中 ${tu.name}`, u.id,{skillFx:'haz:付出代价'}); h1++; } }
   await stageMark(L1);
 
   // 段2：穿刺（前4）
   const L2 = range_forward_n(u,4,dir);
   await telegraphThenImpact(L2);
   let h2=0;
-  for(const c of L2){ const tu=getUnitAt(c.r,c.c); showTrail(u.r,u.c,c.r,c.c); if(tu && tu.side!=='enemy'){ damageUnit(tu.id,15,5,`${u.name} 付出代价·穿刺 命中 ${tu.name}`, u.id); h2++; } }
+  for(const c of L2){ const tu=getUnitAt(c.r,c.c); showTrail(u.r,u.c,c.r,c.c); if(tu && tu.side!=='enemy'){ damageUnit(tu.id,15,5,`${u.name} 付出代价·穿刺 命中 ${tu.name}`, u.id,{skillFx:'haz:付出代价'}); h2++; } }
   await stageMark(L2);
 
   // 段3：横斩（横3x前2）
@@ -1566,7 +2095,7 @@ async function haz_PayThePrice(u, desc){
   for(const c of R){
     const tu=getUnitAt(c.r,c.c);
     if(tu && tu.side!=='enemy' && !seen.has(tu.id)){
-      damageUnit(tu.id,15,0,`${u.name} 付出代价·横斩 命中 ${tu.name}`, u.id);
+      damageUnit(tu.id,15,0,`${u.name} 付出代价·横斩 命中 ${tu.name}`, u.id,{skillFx:'haz:付出代价'});
       updateStatusStacks(tu,'hazBleedTurns',2,{label:'Haz流血', type:'debuff'});
       appendLog(`${tu.name} 附加 Haz流血(2)`); seen.add(tu.id); h3++;
     }
@@ -1584,7 +2113,7 @@ async function haz_ForkOfHatred(u, desc){
   for(const c of R){
     const tu=getUnitAt(c.r,c.c);
     if(tu && tu.side!=='enemy' && !seen1.has(tu.id)){
-      damageUnit(tu.id,15,10,`${u.name} 仇恨之叉·横斩 命中 ${tu.name}`, u.id);
+      damageUnit(tu.id,15,10,`${u.name} 仇恨之叉·横斩 命中 ${tu.name}`, u.id,{skillFx:'haz:仇恨之叉'});
       seen1.add(tu.id); h1++;
     }
   }
@@ -1597,7 +2126,7 @@ async function haz_ForkOfHatred(u, desc){
   for(const c of AOE){
     const tu=getUnitAt(c.r,c.c);
     if(tu && tu.side!=='enemy' && !seen2.has(tu.id)){
-      damageUnit(tu.id,20,0,`${u.name} 仇恨之叉·重砸 命中 ${tu.name}`, u.id, {ignoreCover:true});
+      damageUnit(tu.id,20,0,`${u.name} 仇恨之叉·重砸 命中 ${tu.name}`, u.id, {ignoreCover:true, skillFx:'haz:仇恨之叉'});
       updateStatusStacks(tu,'hazBleedTurns',2,{label:'Haz流血', type:'debuff'});
       appendLog(`${tu.name} 附加 Haz流血(2)`);
       seen2.add(tu.id); h2++;
@@ -1613,7 +2142,7 @@ async function katz_Thrust(u,target){
   await telegraphThenImpact([{r:target.r,c:target.c}]);
   let dmg = calcOutgoingDamage(u,20,target,'矛刺');
   cameraFocusOnCell(target.r,target.c);
-  damageUnit(target.id, dmg, 0, `${u.name} 矛刺 命中 ${target.name}`, u.id);
+  damageUnit(target.id, dmg, 0, `${u.name} 矛刺 命中 ${target.name}`, u.id,{skillFx:'katz:矛刺'});
   u.sp = Math.min(u.maxSp, u.sp+5); u._spBroken = (u.sp<=0); showGainFloat(u,0,5);
   u.dmgDone += dmg; unitActed(u);
 }
@@ -1625,7 +2154,7 @@ async function katz_ChainWhip(u,desc){
   for(const c of cells){
     const tu=getUnitAt(c.r,c.c);
     if(tu && tu.side!=='enemy' && !set.has(tu.id)){
-      damageUnit(tu.id,25,0,`${u.name} 链式鞭击 命中 ${tu.name}`, u.id);
+      damageUnit(tu.id,25,0,`${u.name} 链式鞭击 命中 ${tu.name}`, u.id,{skillFx:'katz:链式鞭击'});
       addStatusStacks(tu,'paralyzed',1,{label:'恐惧', type:'debuff'});
       set.add(tu.id); hits++;
     }
@@ -1644,7 +2173,7 @@ async function katz_MustErase(u, desc){
     for(const c of cells){
       const tu=getUnitAt(c.r,c.c);
       if(tu && tu.side!=='enemy' && !set.has(tu.id)){
-        damageUnit(tu.id, dmg, 0, `${u.name} 必须抹杀一切.. 第${cycle}段 命中 ${tu.name}`, u.id);
+        damageUnit(tu.id, dmg, 0, `${u.name} 必须抹杀一切.. 第${cycle}段 命中 ${tu.name}`, u.id,{skillFx:'katz:必须抹杀一切。。'});
         set.add(tu.id); hits++;
       }
     }
@@ -1663,7 +2192,7 @@ async function tusk_ShieldBash(u,target){
   await telegraphThenImpact([{r:target.r,c:target.c}]);
   const dmg = calcOutgoingDamage(u,10,target,'骨盾猛击');
   cameraFocusOnCell(target.r,target.c);
-  damageUnit(target.id, dmg, 0, `${u.name} 骨盾猛击 ${target.name}`, u.id);
+  damageUnit(target.id, dmg, 0, `${u.name} 骨盾猛击 ${target.name}`, u.id,{skillFx:'tusk:骨盾猛击'});
   const dir = cardinalDirFromDelta(target.r-u.r, target.c-u.c);
   const back = forwardCellAt(target, dir, 1);
   if(back && !getUnitAt(back.r, back.c)){ target.r=back.r; target.c=back.c; pulseCell(back.r,back.c); appendLog(`${target.name} 被击退一格`); }
@@ -1678,9 +2207,11 @@ async function tusk_DeepRoar(u){
     if(tu && tu.side!=='enemy' && !set.has(tu.id)){
       const reduced = applySpDamage(tu, 20, {sourceId:u.id});
       appendLog(`${tu.name} 因咆哮 SP -${reduced}`);
+      showSkillFx('tusk:来自深海的咆哮',{target:tu});
       set.add(tu.id); hits++;
     }
   }
+  showSkillFx('tusk:来自深海的咆哮',{target:u});
   appendLog(`来自深海的咆哮 命中 ${hits} 人`);
   unitActed(u);
 }
@@ -1701,11 +2232,13 @@ function clearStance(u){
 function tusk_WarFortress(u){
   // 防御姿态：减伤50%，每回合+10SP，3回合；期间无法移动
   enterStance(u, 'defense', 3, {dmgReduction:0.5, spPerTurn:10});
+  showSkillFx('tusk:战争堡垒',{target:u});
   unitActed(u);
 }
 function tusk_RetaliateGuard(u){
   // 反伤姿态：减伤40%，每回合+10SP，反弹30%所受HP伤害，3回合；期间无法移动
   enterStance(u, 'retaliate', 3, {dmgReduction:0.4, spPerTurn:10, reflectPct:0.3});
+  showSkillFx('tusk:拼尽全力保卫队长',{target:u});
   unitActed(u);
 }
 async function tusk_BullCharge(u, desc){
@@ -1726,7 +2259,7 @@ async function tusk_BullCharge(u, desc){
     if(lastFree){ showTrail(u.r,u.c,lastFree.r,lastFree.c); u.r=lastFree.r; u.c=lastFree.c; pulseCell(u.r,u.c); }
     const dmg = calcOutgoingDamage(u,20,hitTarget,'牛鲨冲撞');
     cameraFocusOnCell(hitTarget.r, hitTarget.c);
-    damageUnit(hitTarget.id, dmg, 0, `${u.name} 牛鲨冲撞 命中并撞击 ${hitTarget.name}`, u.id);
+    damageUnit(hitTarget.id, dmg, 0, `${u.name} 牛鲨冲撞 命中并撞击 ${hitTarget.name}`, u.id,{skillFx:'tusk:牛鲨冲撞'});
     const knockDir = cardinalDirFromDelta(hitTarget.r - u.r, hitTarget.c - u.c);
     const back = forwardCellAt(hitTarget, knockDir, 1);
     if(back && !getUnitAt(back.r, back.c)){ hitTarget.r=back.r; hitTarget.c=back.c; pulseCell(back.r, back.c); appendLog(`${hitTarget.name} 被撞退一格`); }
@@ -1756,7 +2289,7 @@ async function neyla_SwiftShot(u, targetOrAim){
   if(tu.hp <= tu.maxHp/2) base = base*2;
   const dmg = calcOutgoingDamage(u,base,tu,'迅捷射击');
   cameraFocusOnCell(tu.r, tu.c);
-  damageUnit(tu.id, dmg, 5, `${u.name} 迅捷射击 命中 ${tu.name}`, u.id);
+  damageUnit(tu.id, dmg, 5, `${u.name} 迅捷射击 命中 ${tu.name}`, u.id,{skillFx:'neyla:迅捷射击'});
   unitActed(u);
 }
 async function neyla_PierceSnipe(u, desc){
@@ -1767,7 +2300,7 @@ async function neyla_PierceSnipe(u, desc){
   for(const c of line){
     const tu=getUnitAt(c.r,c.c);
     if(tu && tu.side!=='enemy' && !set.has(tu.id)){
-      damageUnit(tu.id,30,0,`${u.name} 穿刺狙击 命中 ${tu.name}`, u.id);
+      damageUnit(tu.id,30,0,`${u.name} 穿刺狙击 命中 ${tu.name}`, u.id,{skillFx:'neyla:穿刺狙击'});
       const bleedNext = Math.max(tu.status.bleed||0, 2);
       updateStatusStacks(tu,'bleed', bleedNext,{label:'流血', type:'debuff'});
       set.add(tu.id); hits++;
@@ -1781,7 +2314,7 @@ async function neyla_EndShadow(u, aim){
   if(!tu || tu.side==='enemy') { appendLog('终末之影 未命中'); unitActed(u); return; }
   await telegraphThenImpact([{r:tu.r,c:tu.c}]);
   cameraFocusOnCell(tu.r, tu.c);
-  damageUnit(tu.id, 50, 20, `${u.name} 终末之影 命中 ${tu.name}`, u.id);
+  damageUnit(tu.id, 50, 20, `${u.name} 终末之影 命中 ${tu.name}`, u.id,{skillFx:'neyla:终末之影'});
   unitActed(u);
 }
 // Neyla：双钩牵制（2步，红，前3格内优先最近，单体）
@@ -1803,8 +2336,84 @@ async function neyla_DoubleHook(u, desc){
   addStatusStacks(target,'paralyzed',1,{label:'恐惧', type:'debuff'});
   appendLog(`${target.name} 因双钩牵制：下回合 -1 步`);
   const dmg = calcOutgoingDamage(u,15,target,'双钩牵制');
-  damageUnit(target.id, dmg, 0, `${u.name} 双钩牵制 命中 ${target.name}`, u.id);
+  damageUnit(target.id, dmg, 0, `${u.name} 双钩牵制 命中 ${target.name}`, u.id,{skillFx:'neyla:双钩牵制'});
+  showSkillFx('neyla:双钩牵制',{target:target});
   u.dmgDone += dmg; unitActed(u);
+}
+
+async function neyla_ExecuteHarpoons(u, desc){
+  const dir = (desc && desc.dir) ? desc.dir : u.facing;
+  const line = range_line(u, dir);
+  if(line.length===0){ appendLog('执行……：前方没有可以射击的目标'); unitActed(u); return; }
+  await telegraphThenImpact(line);
+  const targets=[]; const seen=new Set();
+  for(const cell of line){
+    const tu = getUnitAt(cell.r, cell.c);
+    if(tu && tu.side!=='enemy' && !seen.has(tu.id)){
+      targets.push(tu);
+      seen.add(tu.id);
+    }
+  }
+  if(targets.length>0){ cameraFocusOnCell(targets[0].r, targets[0].c); }
+  const applySelfCost = (hpCost, spCost, stageLabel)=>{
+    let lostHp = 0;
+    if(hpCost>0 && u.hp>0){
+      const before = u.hp;
+      u.hp = Math.max(0, u.hp - hpCost);
+      lostHp = before - u.hp;
+      if(lostHp>0){
+        appendLog(`${u.name} ${stageLabel} 反噬：HP -${lostHp}`);
+        showDamageFloat(u, lostHp, 0);
+        pulseCell(u.r, u.c);
+        if(before>0 && u.hp<=0){ showDeathFx(u); }
+      }
+    }
+    if(spCost>0){
+      applySpDamage(u, spCost, {reason:`${u.name} ${stageLabel} 反噬：SP -{delta}`});
+    }
+    if(lostHp>0){ renderAll(); }
+    return {lostHp};
+  };
+
+  let firstHits = 0;
+  for(const target of targets){
+    if(target.hp<=0) continue;
+    const dmg = calcOutgoingDamage(u,20,target,'执行……·第一枪');
+    damageUnit(target.id, dmg, 0, `${u.name} 执行……·第一枪 命中 ${target.name}`, u.id,{skillFx:'neyla:执行……'});
+    u.dmgDone += dmg;
+    firstHits++;
+  }
+  if(firstHits>0){ appendLog(`执行……·第一枪 命中 ${firstHits} 人`); }
+  else { appendLog('执行……·第一枪 未命中任何目标'); }
+  applySelfCost(15, 0, '第一枪');
+  await stageMark(line);
+  if(u.hp<=0){ unitActed(u); return; }
+  await sleep(180);
+
+  let secondHits = 0; let executeCount = 0;
+  for(const target of targets){
+    if(target.hp<=0) continue;
+    const executeThreshold = Math.ceil(target.maxHp * 0.15);
+    if(target.hp <= executeThreshold){
+      const lethal = target.hp;
+      damageUnit(target.id, lethal, 0, `${u.name} 执行……·第二枪 处决 ${target.name}`, u.id,{skillFx:'neyla:执行……', trueDamage:true, ignoreCover:true, ignoreToughBody:true});
+      u.dmgDone += lethal;
+      executeCount++;
+      secondHits++;
+    } else {
+      const dmg = calcOutgoingDamage(u,20,target,'执行……·第二枪');
+      damageUnit(target.id, dmg, 0, `${u.name} 执行……·第二枪 命中 ${target.name}`, u.id,{skillFx:'neyla:执行……'});
+      u.dmgDone += dmg;
+      secondHits++;
+    }
+  }
+  if(secondHits>0){
+    appendLog(`执行……·第二枪 命中 ${secondHits} 人${executeCount>0 ? `，处决 ${executeCount}` : ''}`);
+  } else {
+    appendLog('执行……·第二枪 未命中任何目标');
+  }
+  applySelfCost(15, 40, '第二枪');
+  unitActed(u);
 }
 
 // —— Kyn —— 
@@ -1827,11 +2436,11 @@ async function kyn_ShadowDash(u, target){
   let executed = false;
 
   if(target.hp<=thresh){
-    damageUnit(target.id, target.hp, 0, `${u.name} 迅影突刺 处决 ${target.name}`, u.id);
+    damageUnit(target.id, target.hp, 0, `${u.name} 迅影突刺 处决 ${target.name}`, u.id,{skillFx:'kyn:迅影突刺'});
     executed = true;
   } else {
     const before = target.hp;
-    damageUnit(target.id, 20, 0, `${u.name} 迅影突刺 命中 ${target.name}`, u.id);
+    damageUnit(target.id, 20, 0, `${u.name} 迅影突刺 命中 ${target.name}`, u.id,{skillFx:'kyn:迅影突刺'});
     if(before>0 && target.hp<=0) executed = true;
   }
   if(u.passives.includes('kynReturn') && executed){
@@ -1846,11 +2455,11 @@ async function kyn_DeathCall(u, target){
   let executed = false;
 
   if(target.hp<=thresh){
-    damageUnit(target.id, target.hp, 0, `${u.name} 死亡宣告 处决 ${target.name}`, u.id);
+    damageUnit(target.id, target.hp, 0, `${u.name} 死亡宣告 处决 ${target.name}`, u.id,{skillFx:'kyn:死亡宣告'});
     executed = true;
   } else {
     const before = target.hp;
-    damageUnit(target.id, 50, 30, `${u.name} 死亡宣告 重创 ${target.name}`, u.id);
+    damageUnit(target.id, 50, 30, `${u.name} 死亡宣告 重创 ${target.name}`, u.id,{skillFx:'kyn:死亡宣告'});
     if(before>0 && target.hp<=0) executed = true;
   }
   if(u.passives.includes('kynReturn') && executed){
@@ -1866,7 +2475,7 @@ async function kyn_ThroatBlade(u, aim){
   await telegraphThenImpact([{r:tu.r,c:tu.c}]);
   const dmg = calcOutgoingDamage(u,20,tu,'割喉飞刃');
   cameraFocusOnCell(tu.r, tu.c);
-  damageUnit(tu.id, dmg, 0, `${u.name} 割喉飞刃 命中 ${tu.name}`, u.id);
+  damageUnit(tu.id, dmg, 0, `${u.name} 割喉飞刃 命中 ${tu.name}`, u.id,{skillFx:'kyn:割喉飞刃'});
   addStatusStacks(tu,'bleed',1,{label:'流血', type:'debuff'});
   addStatusStacks(tu,'paralyzed',1,{label:'恐惧', type:'debuff'});
   appendLog(`${tu.name} 附加 流血+1、恐惧+1`);
@@ -1880,7 +2489,7 @@ async function kyn_ShadowDance_AOE(u){
   for(const c of cells){
     const tu=getUnitAt(c.r,c.c);
     if(tu && tu.side!=='enemy' && !seen.has(tu.id)){
-      damageUnit(tu.id, 30, 0, `${u.name} 影杀之舞 横扫 ${tu.name}`, u.id, {ignoreCover:true});
+      damageUnit(tu.id, 30, 0, `${u.name} 影杀之舞 横扫 ${tu.name}`, u.id, {ignoreCover:true, skillFx:'kyn:影杀之舞'});
       seen.add(tu.id); hits++;
     }
   }
@@ -2106,7 +2715,7 @@ function buildSkillFactoriesForUnit(u){
         )},
         { key:'怨念滋生', prob:0.33, cond:()=>true, make:()=> skill('怨念滋生',1,'green','全图：对被猎杀标记目标 施加1流血+1恐惧',
           (uu)=>[{r:uu.r,c:uu.c,dir:uu.facing}],
-        (uu)=> { if(!hazMarkedTargetId){ appendLog('怨念滋生：没有被标记的目标'); unitActed(uu); return; } const t=units[hazMarkedTargetId]; if(!t||t.hp<=0){ appendLog('怨念滋生：标记目标不存在或已倒下'); unitActed(uu); return; } addTempClassToCells([{r:t.r,c:t.c}],'highlight-tele',TELEGRAPH_MS); setTimeout(()=>{ addStatusStacks(t,'bleed',1,{label:'流血', type:'debuff'}); addStatusStacks(t,'paralyzed',1,{label:'恐惧', type:'debuff'}); appendLog(`${uu.name} 怨念滋生：对 ${t.name} 施加 1层流血 与 1层恐惧`); }, TELEGRAPH_MS); unitActed(uu); },
+        (uu)=> { if(!hazMarkedTargetId){ appendLog('怨念滋生：没有被标记的目标'); unitActed(uu); return; } const t=units[hazMarkedTargetId]; if(!t||t.hp<=0){ appendLog('怨念滋生：标记目标不存在或已倒下'); unitActed(uu); return; } addTempClassToCells([{r:t.r,c:t.c}],'highlight-tele',TELEGRAPH_MS); setTimeout(()=>{ addStatusStacks(t,'bleed',1,{label:'流血', type:'debuff'}); addStatusStacks(t,'paralyzed',1,{label:'恐惧', type:'debuff'}); showSkillFx('haz:怨念滋生',{target:t}); appendLog(`${uu.name} 怨念滋生：对 ${t.name} 施加 1层流血 与 1层恐惧`); }, TELEGRAPH_MS); unitActed(uu); },
           {},
           {castMs:800}
         )},
@@ -2272,7 +2881,7 @@ function buildSkillFactoriesForUnit(u){
       F.push(
         { key:'自我了断。。', prob:0.40, cond:()=>true, make:()=> skill('自我了断。。',2,'red','5x5内任意敌人：瞬杀，自己HP清零（压迫）',
           (uu)=> range_square_n(uu,2),
-          (uu,aim)=>{ const tu=getUnitAt(aim.r,aim.c); if(tu && tu.side!=='enemy'){ damageUnit(tu.id, tu.hp, 0, `${uu.name} 自我了断 秒杀 ${tu.name}`, uu.id); damageUnit(uu.id, uu.hp, 0, `${uu.name} 生命燃尽`, uu.id, {ignoreToughBody:true}); } unitActed(uu); },
+          (uu,aim)=>{ const tu=getUnitAt(aim.r,aim.c); if(tu && tu.side!=='enemy'){ damageUnit(tu.id, tu.hp, 0, `${uu.name} 自我了断 秒杀 ${tu.name}`, uu.id,{skillFx:'kyn:自我了断。。'}); damageUnit(uu.id, uu.hp, 0, `${uu.name} 生命燃尽`, uu.id, {ignoreToughBody:true, skillFx:'kyn:自我了断。。', skillFxCtx:{target:uu}}); } unitActed(uu); },
           {aoe:false},
           {cellTargeting:true, castMs:1100}
         )}
