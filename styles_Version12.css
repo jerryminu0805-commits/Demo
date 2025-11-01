@@ -133,6 +133,56 @@ body {
 .hpfill { height: 100%; background: linear-gradient(90deg, #ff7875, #ff4d4f); }
 .spfill { height: 100%; background: linear-gradient(90deg, #36cfc9, #13c2c2); }
 
+.unit .facing-arrow,
+.largeOverlay .facing-arrow {
+  position: absolute;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+  opacity: 0.6;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4));
+  transform: translate(-50%, 0) rotate(0deg);
+  transition: transform .18s ease;
+}
+.unit .facing-arrow { bottom: 4px; }
+.largeOverlay .facing-arrow { bottom: 10px; }
+
+.unit .facing-arrow::before,
+.largeOverlay .facing-arrow::before {
+  content: '';
+  display: block;
+  width: 100%;
+  height: 100%;
+  clip-path: polygon(0% 50%, 55% 12%, 100% 50%, 55% 88%);
+  background: linear-gradient(135deg, rgba(255,255,255,0.85), rgba(255,255,255,0.2));
+}
+
+.unit.player .facing-arrow::before,
+.largeOverlay.player .facing-arrow::before {
+  background: linear-gradient(135deg, rgba(91,140,255,0.75), rgba(91,140,255,0.18));
+}
+
+.unit.enemy .facing-arrow::before,
+.largeOverlay.enemy .facing-arrow::before {
+  background: linear-gradient(135deg, rgba(255,77,79,0.75), rgba(255,77,79,0.22));
+}
+
+.unit[data-facing="left"] .facing-arrow,
+.largeOverlay[data-facing="left"] .facing-arrow {
+  transform: translate(-50%, 0) rotate(180deg);
+}
+
+.unit[data-facing="up"] .facing-arrow,
+.largeOverlay[data-facing="up"] .facing-arrow {
+  transform: translate(-50%, 0) rotate(-90deg);
+}
+
+.unit[data-facing="down"] .facing-arrow,
+.largeOverlay[data-facing="down"] .facing-arrow {
+  transform: translate(-50%, 0) rotate(90deg);
+}
+
 /* 2x2 大单位（如 Tusk）绝对定位覆盖层：不参与 Grid 排版 */
 .largeOverlay {
   position: absolute;
@@ -265,6 +315,7 @@ body {
 .skillCard.green { border-left-color: #52c41a; }
 .skillCard.red { border-left-color: #ff7875; }
 .skillCard.blue { border-left: 6px solid #1890ff !important; }
+.skillCard.orange { border-left-color: #fa8c16; }
 .skillCard:hover { transform: translateY(-1px); background: #141c2b; }
 .skillCard.disabled { opacity: .6; filter: grayscale(0.1); cursor: not-allowed; }
 
