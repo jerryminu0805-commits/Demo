@@ -334,6 +334,25 @@ function injectFXStyles(){
   .fx-number.status { font-size: 16px; letter-spacing: 0.4px; }
   .fx-number.status.buff { color: #fa8c16; }
   .fx-number.status.debuff { color: #a8071a; }
+  .fx-death { position: absolute; transform: translate(-50%, -50%); pointer-events: none; overflow: visible;
+              filter: drop-shadow(0 14px 28px rgba(0,0,0,0.45)); animation: fx-death-fade 900ms ease-out forwards; }
+  .fx-death .piece { position: absolute; left: 0; width: 100%; height: 50%; box-sizing: border-box; border-radius: 8px;
+                     background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.28); }
+  .fx-death.player .piece { background: rgba(91,140,255,0.18); border-color: rgba(91,140,255,0.45); }
+  .fx-death.enemy  .piece { background: rgba(255,77,79,0.18); border-color: rgba(255,77,79,0.45); }
+  .fx-death .piece.top { top: 0; border-bottom-left-radius: 4px; border-bottom-right-radius: 4px;
+                         animation: fx-death-top 900ms ease-out forwards; }
+  .fx-death .piece.bottom { bottom: 0; border-top-left-radius: 4px; border-top-right-radius: 4px;
+                            animation: fx-death-bottom 900ms ease-out forwards; }
+  .fx-death.size-2 .piece { border-radius: 12px; }
+  .fx-death .crack { position: absolute; left: 50%; top: 0; width: 3px; height: 100%;
+                     background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0));
+                     transform: translateX(-50%) scaleY(0); mix-blend-mode: screen;
+                     animation: fx-death-crack 260ms ease-out forwards, fx-death-fade 900ms ease-out forwards; }
+  .fx-death .dust { position: absolute; left: 50%; top: 50%; width: 100%; height: 100%;
+                    background: radial-gradient(circle, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0) 70%);
+                    transform: translate(-50%, -50%) scale(0.65); opacity: 0.85;
+                    animation: fx-death-dust 900ms ease-out forwards; pointer-events: none; }
   .fx-trail { width: 6px; height: 0; background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.85), rgba(255,255,255,0));
               box-shadow: 0 0 8px rgba(255,255,255,0.8); transform-origin: 0 0; animation: fx-trail 220ms linear forwards; mix-blend-mode: screen; }
   .shake { animation: cam-shake 180ms ease-in-out 1; }
@@ -345,6 +364,29 @@ function injectFXStyles(){
                          50%{ transform: translate(-50%,-50%) scale(1.1); opacity: 1; }
                          100%{ transform: translate(-50%,-50%) scale(0.8); opacity: 0; } }
   @keyframes fx-trail { 0% { opacity: 0; } 30% { opacity: 1; } 100% { opacity: 0; } }
+  @keyframes fx-death-top {
+    0% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+    45% { transform: translate(-5%, -12%) rotate(-4deg); opacity: 1; }
+    100% { transform: translate(-12%, -46%) rotate(-10deg); opacity: 0; }
+  }
+  @keyframes fx-death-bottom {
+    0% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+    45% { transform: translate(5%, 12%) rotate(4deg); opacity: 1; }
+    100% { transform: translate(12%, 46%) rotate(10deg); opacity: 0; }
+  }
+  @keyframes fx-death-crack {
+    0% { transform: translateX(-50%) scaleY(0); opacity: 0; }
+    60% { transform: translateX(-50%) scaleY(1); opacity: 1; }
+    100% { transform: translateX(-50%) scaleY(1); opacity: 0; }
+  }
+  @keyframes fx-death-dust {
+    0% { transform: translate(-50%, -50%) scale(0.65); opacity: 0.85; }
+    100% { transform: translate(-50%, -60%) scale(1.12); opacity: 0; }
+  }
+  @keyframes fx-death-fade {
+    0% { opacity: 1; }
+    100% { opacity: 0; }
+  }
   @keyframes cam-shake {
     0% { transform: translate(2px, -2px) scale(1.02); }
     25% { transform: translate(-2px, 2px) scale(1.02); }
@@ -439,7 +481,55 @@ function getCellCenter(r,c){
 function makeEl(cls, html=''){ const el=document.createElement('div'); el.className=`fx ${cls}`; if(html) el.innerHTML=html; return el; }
 function onAnimEndRemove(el, timeout=1200){ const done=()=>el.remove(); el.addEventListener('animationend',done,{once:true}); setTimeout(done, timeout); }
 function fxAtCell(r,c,el){ ensureFxLayer(); const p=getCellCenter(r,c); el.style.left=`${p.x}px`; el.style.top=`${p.y}px`; fxLayer.appendChild(el); return el; }
+function getUnitBounds(u){
+  if(!u) return null;
+  const size = Math.max(1, u.size || 1);
+  const tl = getCellEl(u.r, u.c);
+  const br = getCellEl(u.r + size - 1, u.c + size - 1);
+  if(!tl || !br) return null;
+  const left = tl.offsetLeft;
+  const top = tl.offsetTop;
+  const right = br.offsetLeft + br.offsetWidth;
+  const bottom = br.offsetTop + br.offsetHeight;
+  const width = Math.max(0, right - left);
+  const height = Math.max(0, bottom - top);
+  const centerX = left + width / 2;
+  const centerY = top + height / 2;
+  return { left, top, width, height, centerX, centerY };
+}
+function fxAtUnit(u, el){
+  ensureFxLayer();
+  const bounds = getUnitBounds(u);
+  if(!bounds){
+    if(u) return fxAtCell(u.r, u.c, el);
+    return null;
+  }
+  el.style.left = `${bounds.centerX}px`;
+  el.style.top = `${bounds.centerY}px`;
+  el.style.width = `${bounds.width}px`;
+  el.style.height = `${bounds.height}px`;
+  el.style.transform = 'translate(-50%, -50%)';
+  fxLayer.appendChild(el);
+  return el;
+}
 function showHitFX(r,c){ const el=makeEl('fx-impact fx-pop'); fxAtCell(r,c, el); onAnimEndRemove(el,500); }
+function showDeathFx(u){
+  if(!u || !battleAreaEl) return;
+  const node = makeEl('fx-death');
+  node.classList.add(u.side === 'player' ? 'player' : 'enemy');
+  const size = Math.max(1, u.size || 1);
+  if(size > 1){ node.classList.add(`size-${size}`); }
+  node.innerHTML = `
+    <div class="piece top"></div>
+    <div class="piece bottom"></div>
+    <div class="crack"></div>
+    <div class="dust"></div>
+  `;
+  const attached = fxAtUnit(u, node);
+  if(attached){
+    onAnimEndRemove(attached, 1200);
+  }
+}
 function spawnFloatText(r,c,text,{className='', offsetX=0, offsetY=-28, zOffset=0}={}){
   ensureFxLayer();
   const el = makeEl(`fx-number fx-float ${className}`.trim(), text);
@@ -931,14 +1021,17 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
     hpDmg = Math.round(hpDmg * 0.75);
   }
 
+  const prevHp = u.hp;
   const finalHp = Math.max(0, hpDmg);
   const finalSp = Math.max(0, spDmg);
 
   u.hp = Math.max(0, u.hp - finalHp);
   u.sp = Math.max(0, u.sp - finalSp);
+  const died = prevHp > 0 && u.hp <= 0;
 
   appendLog(`${reason} (-${finalHp} HP, -${finalSp} SP)`);
   cameraShake(); showHitFX(u.r, u.c); showDamageFloat(u.r, u.c, finalHp, finalSp); pulseCell(u.r, u.c);
+  if(died){ showDeathFx(u); }
 
   // 锁链缠绕 反击（Haz）
   if(sourceId){
@@ -2106,6 +2199,7 @@ function showGodsWillMenuAtUnit(u){
     u.hp = 0;
     appendLog(`GOD’S WILL：${u.name} 被直接抹除（-${before} HP）`);
     cameraShake(); showHitFX(u.r,u.c); showDamageFloat(u.r,u.c,before,0);
+    if(before>0){ showDeathFx(u); }
     checkHazComebackStatus();
     renderAll();
     disarmGodsWill();
