@@ -327,8 +327,10 @@ function injectFXStyles(){
   .fx-impact { width: 60px; height: 60px; background: radial-gradient(closest-side, rgba(255,255,255,0.9), rgba(255,180,0,0.5) 60%, transparent 70%); border-radius: 50%;
                animation: fx-impact 380ms ease-out forwards; mix-blend-mode: screen; }
   .fx-number { font-weight: 800; font-size: 18px; text-shadow: 0 1px 0 #000, 0 0 8px rgba(0,0,0,0.35); }
-  .fx-number.hp { color: #ff4d4f; }
-  .fx-number.sp { color: #36cfc9; }
+  .fx-number.hp.damage { color: #ff4d4f; }
+  .fx-number.hp.heal { color: #73d13d; }
+  .fx-number.sp.damage { color: #9254de; }
+  .fx-number.sp.heal { color: #40a9ff; }
   .fx-trail { width: 6px; height: 0; background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.85), rgba(255,255,255,0));
               box-shadow: 0 0 8px rgba(255,255,255,0.8); transform-origin: 0 0; animation: fx-trail 220ms linear forwards; mix-blend-mode: screen; }
   .shake { animation: cam-shake 180ms ease-in-out 1; }
@@ -424,15 +426,21 @@ function makeEl(cls, html=''){ const el=document.createElement('div'); el.classN
 function onAnimEndRemove(el, timeout=1200){ const done=()=>el.remove(); el.addEventListener('animationend',done,{once:true}); setTimeout(done, timeout); }
 function fxAtCell(r,c,el){ ensureFxLayer(); const p=getCellCenter(r,c); el.style.left=`${p.x}px`; el.style.top=`${p.y}px`; fxLayer.appendChild(el); return el; }
 function showHitFX(r,c){ const el=makeEl('fx-impact fx-pop'); fxAtCell(r,c, el); onAnimEndRemove(el,500); }
-function showDamageFloat(r,c,hp,sp){
+function spawnFloatText(r,c,text,{className='', offsetX=0, offsetY=-28}={}){
   ensureFxLayer();
-  if(hp>0){ const el=makeEl('fx-number hp fx-float', `-${hp}`); el.style.transform='translate(-50%,-50%)'; fxAtCell(r,c,el); onAnimEndRemove(el,900); }
-  if(sp>0){ const el=makeEl('fx-number sp fx-float', `-${sp} SP`); el.style.transform='translate(-50%,-50%)'; const p=getCellCenter(r,c); el.style.left=`${p.x+16}px`; el.style.top=`${p.y-6}px`; fxLayer.appendChild(el); onAnimEndRemove(el,900); }
+  const el = makeEl(`fx-number fx-float ${className}`.trim(), text);
+  const node = fxAtCell(r,c,el);
+  node.style.transform = `translate(-50%,-50%) translate(${offsetX}px, ${offsetY}px)`;
+  onAnimEndRemove(node,900);
+  return node;
+}
+function showDamageFloat(r,c,hp,sp){
+  if(hp>0){ spawnFloatText(r,c,`-${hp}`, {className:'hp damage', offsetY:-34}); }
+  if(sp>0){ spawnFloatText(r,c,`-${sp}`, {className:'sp damage', offsetY: hp>0 ? -12 : -34}); }
 }
 function showGainFloat(r,c,hp,sp){
-  ensureFxLayer();
-  if(hp>0){ const el=makeEl('fx-number hp fx-float', `+${hp}`); el.style.color='#73d13d'; el.style.transform='translate(-50%,-50%)'; fxAtCell(r,c,el); onAnimEndRemove(el,900); }
-  if(sp>0){ const el=makeEl('fx-number sp fx-float', `+${sp} SP`); el.style.color='#40a9ff'; el.style.transform='translate(-50%,-50%)'; const p=getCellCenter(r,c); el.style.left=`${p.x+16}px`; el.style.top=`${p.y-6}px`; fxLayer.appendChild(el); onAnimEndRemove(el,900); }
+  if(hp>0){ spawnFloatText(r,c,`+${hp}`, {className:'hp heal', offsetY:-34}); }
+  if(sp>0){ spawnFloatText(r,c,`+${sp}`, {className:'sp heal', offsetY: hp>0 ? -12 : -34}); }
 }
 function pulseCell(r,c){ const cell=getCellEl(r,c); if(!cell) return; cell.classList.add('pulse'); setTimeout(()=>cell.classList.remove('pulse'),620); }
 function applyCameraTransform(){
