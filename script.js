@@ -44,6 +44,7 @@ function aiLog(u,msg){ if(DEBUG_AI) appendLog(`[AI] ${u.name}: ${msg}`); }
 const inventory = { pistol: false };
 
 let roundsPassed = 0;
+let playerBonusStepsNextTurn = 0;
 function computeBaseSteps(){ return Math.min(BASE_START_STEPS + roundsPassed, MAX_STEPS); }
 
 let playerSteps = computeBaseSteps();
@@ -152,6 +153,8 @@ function createUnit(id, name, side, level, r, c, maxHp, maxSp, restoreOnZeroPct,
       bleed: 0,
       hazBleedTurns: 0,
       recoverStacks: 0,          // “恢复”Buff 层数（每大回合开始消耗一层，+5HP）
+      jixueStacks: 0,            // “鸡血”Buff 层数（下一次攻击伤害x2）
+      dependStacks: 0,           // “依赖”Buff 层数（下一次攻击真实伤害，结算后清空自身SP）
     },
     dmgDone: 0,
     skillPool: [],
@@ -318,20 +321,26 @@ function injectFXStyles(){
   .spbar .spfill { height: 100%; background: #40a9ff; }
 
   .fx-layer { position: absolute; inset: 0; pointer-events: none; z-index: var(--fx-z); }
-  .fx { position: absolute; will-change: transform, opacity; }
+  .fx { position: absolute; will-change: transform, opacity; --fx-offset-x: 0px; --fx-offset-y: -28px; }
   .fx-pop { animation: fx-pop 280ms ease-out forwards; }
   .fx-float { animation: fx-float-up 900ms ease-out forwards; }
   .fx-impact { width: 60px; height: 60px; background: radial-gradient(closest-side, rgba(255,255,255,0.9), rgba(255,180,0,0.5) 60%, transparent 70%); border-radius: 50%;
                animation: fx-impact 380ms ease-out forwards; mix-blend-mode: screen; }
   .fx-number { font-weight: 800; font-size: 18px; text-shadow: 0 1px 0 #000, 0 0 8px rgba(0,0,0,0.35); }
-  .fx-number.hp { color: #ff4d4f; }
-  .fx-number.sp { color: #36cfc9; }
+  .fx-number.hp.damage { color: #ff4d4f; }
+  .fx-number.hp.heal { color: #73d13d; }
+  .fx-number.sp.damage { color: #9254de; }
+  .fx-number.sp.heal { color: #40a9ff; }
+  .fx-number.status { font-size: 16px; letter-spacing: 0.4px; }
+  .fx-number.status.buff { color: #fa8c16; }
+  .fx-number.status.debuff { color: #a8071a; }
   .fx-trail { width: 6px; height: 0; background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.85), rgba(255,255,255,0));
               box-shadow: 0 0 8px rgba(255,255,255,0.8); transform-origin: 0 0; animation: fx-trail 220ms linear forwards; mix-blend-mode: screen; }
   .shake { animation: cam-shake 180ms ease-in-out 1; }
   .pulse { animation: pulse 600ms ease-out 1; }
   @keyframes fx-pop { 0%{ transform: scale(0.7); opacity: 0.0; } 55%{ transform: scale(1.1); opacity: 1; } 100%{ transform: scale(1); opacity: 1; } }
-  @keyframes fx-float-up { 0%{ transform: translate(-50%,-50%) translateY(0); opacity: 1; } 100%{ transform: translate(-50%,-50%) translateY(-36px); opacity: 0; } }
+  @keyframes fx-float-up { 0%{ transform: translate(-50%,-50%) translate(var(--fx-offset-x), var(--fx-offset-y)); opacity: 1; }
+                           100%{ transform: translate(-50%,-50%) translate(var(--fx-offset-x), calc(var(--fx-offset-y) - 36px)); opacity: 0; } }
   @keyframes fx-impact { 0%{ transform: translate(-50%,-50%) scale(0.6); opacity: 0; }
                          50%{ transform: translate(-50%,-50%) scale(1.1); opacity: 1; }
                          100%{ transform: translate(-50%,-50%) scale(0.8); opacity: 0; } }
@@ -358,6 +367,7 @@ function injectFXStyles(){
   .skillCard.green { border-left-color:#73d13d; }
   .skillCard.red   { border-left-color:#ff4d4f; }
   .skillCard.blue  { border-left-color:#40a9ff; }
+  .skillCard.orange{ border-left-color:#fa8c16; }
   .skillCard.pink  { border-left-color:#eb2f96; }
   .skillCard.white { border-left-color:#d9d9d9; }
   .skillCard.disabled { opacity: 0.55; cursor: not-allowed; }
@@ -408,7 +418,17 @@ function injectFXStyles(){
   `;
   const style = document.createElement('style'); style.id='fx-styles'; style.textContent=css; document.head.appendChild(style);
 }
-function ensureFxLayer(){ if(!fxLayer){ fxLayer=document.createElement('div'); fxLayer.className='fx-layer'; battleAreaEl.appendChild(fxLayer); } }
+function ensureFxLayer(){
+  if(!battleAreaEl) return null;
+  if(!fxLayer){
+    fxLayer=document.createElement('div');
+    fxLayer.className='fx-layer';
+  }
+  if(fxLayer.parentElement!==battleAreaEl){
+    battleAreaEl.appendChild(fxLayer);
+  }
+  return fxLayer;
+}
 function getCellEl(r,c){ return document.querySelector(`.cell[data-r="${r}"][data-c="${c}"]`); }
 function getCellCenter(r,c){
   const cell = getCellEl(r,c); const area = battleAreaEl;
@@ -420,15 +440,59 @@ function makeEl(cls, html=''){ const el=document.createElement('div'); el.classN
 function onAnimEndRemove(el, timeout=1200){ const done=()=>el.remove(); el.addEventListener('animationend',done,{once:true}); setTimeout(done, timeout); }
 function fxAtCell(r,c,el){ ensureFxLayer(); const p=getCellCenter(r,c); el.style.left=`${p.x}px`; el.style.top=`${p.y}px`; fxLayer.appendChild(el); return el; }
 function showHitFX(r,c){ const el=makeEl('fx-impact fx-pop'); fxAtCell(r,c, el); onAnimEndRemove(el,500); }
-function showDamageFloat(r,c,hp,sp){
+function spawnFloatText(r,c,text,{className='', offsetX=0, offsetY=-28, zOffset=0}={}){
   ensureFxLayer();
-  if(hp>0){ const el=makeEl('fx-number hp fx-float', `-${hp}`); el.style.transform='translate(-50%,-50%)'; fxAtCell(r,c,el); onAnimEndRemove(el,900); }
-  if(sp>0){ const el=makeEl('fx-number sp fx-float', `-${sp} SP`); el.style.transform='translate(-50%,-50%)'; const p=getCellCenter(r,c); el.style.left=`${p.x+16}px`; el.style.top=`${p.y-6}px`; fxLayer.appendChild(el); onAnimEndRemove(el,900); }
+  const el = makeEl(`fx-number fx-float ${className}`.trim(), text);
+  const node = fxAtCell(r,c,el);
+  node.style.setProperty('--fx-offset-x', `${offsetX}px`);
+  node.style.setProperty('--fx-offset-y', `${offsetY}px`);
+  if(zOffset){ node.style.zIndex = String(100 + zOffset); }
+  onAnimEndRemove(node,900);
+  return node;
+}
+function showDamageFloat(r,c,hp,sp){
+  if(sp>0){
+    const offsetY = hp>0 ? -20 : -40;
+    spawnFloatText(r,c,`-${sp}`, {className:'sp damage', offsetY, zOffset:1});
+  }
+  if(hp>0){
+    const offsetY = sp>0 ? -56 : -40;
+    spawnFloatText(r,c,`-${hp}`, {className:'hp damage', offsetY, zOffset:2});
+  }
 }
 function showGainFloat(r,c,hp,sp){
-  ensureFxLayer();
-  if(hp>0){ const el=makeEl('fx-number hp fx-float', `+${hp}`); el.style.color='#73d13d'; el.style.transform='translate(-50%,-50%)'; fxAtCell(r,c,el); onAnimEndRemove(el,900); }
-  if(sp>0){ const el=makeEl('fx-number sp fx-float', `+${sp} SP`); el.style.color='#40a9ff'; el.style.transform='translate(-50%,-50%)'; const p=getCellCenter(r,c); el.style.left=`${p.x+16}px`; el.style.top=`${p.y-6}px`; fxLayer.appendChild(el); onAnimEndRemove(el,900); }
+  if(sp>0){
+    const offsetY = hp>0 ? -20 : -40;
+    spawnFloatText(r,c,`+${sp}`, {className:'sp heal', offsetY, zOffset:1});
+  }
+  if(hp>0){
+    const offsetY = sp>0 ? -56 : -40;
+    spawnFloatText(r,c,`+${hp}`, {className:'hp heal', offsetY, zOffset:2});
+  }
+}
+function showStatusFloat(r,c,label,{type='buff', delta=null, offsetY=-72}={}){
+  let text = label;
+  if(delta!==null && delta!==0){
+    const sign = delta>0 ? '+' : '';
+    text += `${sign}${delta}`;
+  }
+  return spawnFloatText(r,c,text,{className:`status ${type}`, offsetY, zOffset:3});
+}
+function updateStatusStacks(u,key,next,{label,type='buff', offsetY=-72}={}){
+  if(!u || !u.status) return next;
+  const prev = u.status[key] || 0;
+  const value = next;
+  u.status[key] = value;
+  const diff = value - prev;
+  if(diff !== 0){
+    showStatusFloat(u.r,u.c,label,{type, delta: diff, offsetY});
+  }
+  return value;
+}
+function addStatusStacks(u,key,delta,opts){
+  if(!u || !u.status || !delta) return (u && u.status) ? (u.status[key] || 0) : 0;
+  const prev = u.status[key] || 0;
+  return updateStatusStacks(u,key, prev + delta, opts);
 }
 function pulseCell(r,c){ const cell=getCellEl(r,c); if(!cell) return; cell.classList.add('pulse'); setTimeout(()=>cell.classList.remove('pulse'),620); }
 function applyCameraTransform(){
@@ -716,7 +780,8 @@ async function stageMark(cells){
 function applyStunOrStack(target, layers=1, {reason='', bypass=false}={}){
   const u = target; if(!u || u.hp<=0) return;
   if(bypass){
-    u.status.stunned = Math.max(1, u.status.stunned + 1);
+    const next = Math.max(1, (u.status.stunned||0) + 1);
+    updateStatusStacks(u,'stunned', next, {label:'眩晕', type:'debuff'});
     if(reason) appendLog(`${u.name} 因${reason}，陷入眩晕`);
     return;
   }
@@ -725,7 +790,8 @@ function applyStunOrStack(target, layers=1, {reason='', bypass=false}={}){
   appendLog(`${u.name} 眩晕叠层 +${layers}（${u._staggerStacks}/${thr}）`);
   if(u._staggerStacks >= thr){
     u._staggerStacks = 0;
-    u.status.stunned = Math.max(1, u.status.stunned + 1);
+    const next = Math.max(1, (u.status.stunned||0) + 1);
+    updateStatusStacks(u,'stunned', next, {label:'眩晕', type:'debuff'});
     if(reason) appendLog(`${u.name} 叠层达到门槛，陷入眩晕`);
   }
 }
@@ -795,38 +861,57 @@ function calcOutgoingDamage(attacker, baseDmg, target, skillName){
 function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
   const u = units[id]; if(!u || u.hp<=0) return;
 
-  if(sourceId){
-    const src = units[sourceId];
-    if(src && src.side === u.side){ appendLog(`友伤无效：${src.name} -> ${u.name}`); return; }
+  const source = sourceId ? units[sourceId] : null;
+  const buffStage = opts.buffStage || 'final';
+  let trueDamage = !!opts.trueDamage;
+
+  if(source){
+    if(source.side === u.side){ appendLog(`友伤无效：${source.name} -> ${u.name}`); return; }
+
+    if(!opts.ignoreJixue && buffStage==='final' && source.status && source.status.jixueStacks>0){
+      if(!source._jixueActivated){
+        appendLog(`${source.name} 的“鸡血”触发：伤害 x2`);
+        source._jixueActivated = true;
+      }
+      hpDmg = Math.round(hpDmg * 2);
+    }
+
+    if(!opts.ignoreDepend && buffStage==='final' && source.status && source.status.dependStacks>0){
+      if(!source._dependUnleash){
+        appendLog(`${source.name} 的“依赖”触发：造成真实伤害`);
+        source._dependUnleash = true;
+      }
+      trueDamage = true;
+    }
   }
+
   // 掩体：远程（距离>1）才被掩体免疫
-  if(sourceId){
-    const src = units[sourceId];
-    if(src && isCoverCell(u.r, u.c) && mdist(src, u) > 1 && !opts.ignoreCover){
+  if(source && !trueDamage){
+    if(isCoverCell(u.r, u.c) && mdist(source, u) > 1 && !opts.ignoreCover){
       appendLog(`${u.name} 处于掩体内，抵御了远距离伤害`);
       return;
     }
   }
   // 力挽狂澜减伤
-  if(u.id==='haz' && u._comeback){
+  if(u.id==='haz' && u._comeback && !trueDamage){
     hpDmg = Math.round(hpDmg * 0.9);
     spDmg = Math.round(spDmg * 0.9);
   }
 
   // 姿态减伤（优先于 Tusk 固有护甲）
-  if(u._stanceType && u._stanceTurns>0 && u._stanceDmgRed>0){
+  if(!trueDamage && u._stanceType && u._stanceTurns>0 && u._stanceDmgRed>0){
     hpDmg = Math.round(hpDmg * (1 - u._stanceDmgRed));
     spDmg = Math.round(spDmg * (1 - u._stanceDmgRed));
   } else {
     // Tusk 固有“骨墙”（若未进入姿态）
-    if(u.id==='tusk' && !opts.ignoreTuskWall){
+    if(!trueDamage && u.id==='tusk' && !opts.ignoreTuskWall){
       hpDmg = Math.round(hpDmg * 0.7);
       spDmg = Math.round(spDmg * 0.7);
     }
   }
 
   // Tusk 替 Haz 承伤
-  if(u.id==='haz'){
+  if(!trueDamage && u.id==='haz'){
     const tusk = units['tusk'];
     if(tusk && tusk.hp>0){
       const redHp = Math.round(hpDmg * 0.5);
@@ -838,11 +923,11 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
     }
   }
 
-  if(u.id==='haz' && u.chainShieldTurns>0){
+  if(!trueDamage && u.id==='haz' && u.chainShieldTurns>0){
     hpDmg = Math.round(hpDmg * 0.6);
     spDmg = Math.round(spDmg * 0.6);
   }
-  if(u.passives.includes('toughBody') && !opts.ignoreToughBody){
+  if(!trueDamage && u.passives.includes('toughBody') && !opts.ignoreToughBody){
     hpDmg = Math.round(hpDmg * 0.75);
   }
 
@@ -939,9 +1024,18 @@ function adoraZap(u,target){
   cameraFocusOnCell(target.r, target.c);
   damageUnit(target.id,10,15,`${u.name} 自制粉色迷你电击装置 命中 ${target.name}`, u.id);
   applyStunOrStack(target, 1, {reason:'电击装置'});
-  target.status.paralyzed = (target.status.paralyzed||0) + 1;
+  addStatusStacks(target,'paralyzed',1,{label:'恐惧', type:'debuff'});
   appendLog(`${target.name} 下回合 -1 步`);
   u.dmgDone += 10; unitActed(u);
+}
+function adoraCheer(u, aim){
+  const t = getUnitAt(aim.r, aim.c);
+  if(!t || t.side!==u.side){ appendLog('加油哇！ 目标无效'); return; }
+  if(t.status.jixueStacks>0){ appendLog(`${t.name} 已经处于“鸡血”状态`); return; }
+  updateStatusStacks(t,'jixueStacks',1,{label:'鸡血', type:'buff'});
+  pulseCell(t.r,t.c);
+  appendLog(`${u.name} 对 ${t.name} 使用 加油哇！：赋予 1 层“鸡血”`);
+  unitActed(u);
 }
 function darioClaw(u,target){
   if(!target || target.side===u.side){ appendLog('机械爪击 目标无效'); return; }
@@ -991,6 +1085,21 @@ function darioPull(u, targetOrDesc){
   appendLog(`${target.name} SP -${reduced}`);
   u.dmgDone += dmg; unitActed(u);
 }
+function darioSweetAfterBitter(u){
+  playerBonusStepsNextTurn += 4;
+  appendLog(`${u.name} 使用 先苦后甜：下个玩家回合 +4 步`);
+  unitActed(u);
+}
+function adoraDepend(u, aim){
+  const t = getUnitAt(aim.r, aim.c);
+  if(!t || t.side!==u.side){ appendLog('只能靠你了。。 目标无效'); return; }
+  if(t.status.dependStacks>0){ appendLog(`${t.name} 已经处于“依赖”状态`); return; }
+  damageUnit(u.id, 25, 0, `${u.name} 牺牲自身 25 HP`, null, {trueDamage:true, ignoreJixue:true, ignoreDepend:true});
+  updateStatusStacks(t,'dependStacks',1,{label:'依赖', type:'buff'});
+  pulseCell(t.r,t.c);
+  appendLog(`${u.name} 对 ${t.name} 施加“依赖”：下一次攻击造成真实伤害并清空自身SP`);
+  unitActed(u);
+}
 function karmaObeyMove(u, payload){
   const dest = payload && payload.moveTo; if(!dest){ appendLog('无效的目的地'); return; }
   cameraFocusOnCell(dest.r, dest.c); showTrail(u.r,u.c,dest.r,dest.c);
@@ -1014,7 +1123,36 @@ function karmaGrip(u,target){
   }
   unitActed(u);
 }
-function unitActed(u){ u.actionsThisTurn = Math.max(0, (u.actionsThisTurn||0)+1); }
+function unitActed(u){
+  if(!u) return;
+  u.actionsThisTurn = Math.max(0, (u.actionsThisTurn||0)+1);
+
+  if(u._jixueActivated){
+    if(u.status && u.status.jixueStacks>0){
+      u.status.jixueStacks = Math.max(0, u.status.jixueStacks - 1);
+      appendLog(`${u.name} 的“鸡血”消散`);
+    }
+    u._jixueActivated = false;
+  }
+
+  if(u._dependUnleash){
+    if(u.status && u.status.dependStacks>0){
+      u.status.dependStacks = 0;
+      const beforeSp = u.sp;
+      u.sp = 0;
+      u._spBroken = (u.sp<=0);
+      if(beforeSp>0){
+        appendLog(`${u.name} 的“依赖”消散：SP 清空`);
+        showDamageFloat(u.r,u.c,0,beforeSp);
+      } else {
+        appendLog(`${u.name} 的“依赖”消散：SP 已为 0`);
+      }
+      handleSpCrashIfNeeded(u);
+      renderAll();
+    }
+    u._dependUnleash = false;
+  }
+}
 function karmaPunch(u,target){
   if(!target || target.side===u.side){ appendLog('沙包大的拳头 目标无效'); return; }
   const dmg = calcOutgoingDamage(u, 15, target, '沙包大的拳头');
@@ -1089,8 +1227,8 @@ function adoraFieldMedic(u, aim){
   t.hp = Math.min(t.maxHp, t.hp + 20);
   t.sp = Math.min(t.maxSp, t.sp + 15);
   t._spBroken = (t.sp<=0);
-  t.status.recoverStacks = (t.status.recoverStacks || 0) + 1;
-  appendLog(`${u.name} 对 ${t.name} 使用 略懂的医术！：+20HP +15SP，并赋予“恢复”(${t.status.recoverStacks})`);
+  const stacks = addStatusStacks(t,'recoverStacks',1,{label:'恢复', type:'buff'});
+  appendLog(`${u.name} 对 ${t.name} 使用 略懂的医术！：+20HP +15SP，并赋予“恢复”(${stacks})`);
   showGainFloat(t.r,t.c,t.hp-hpBefore,t.sp-spBefore);
   unitActed(u);
 }
@@ -1117,7 +1255,7 @@ async function haz_HarpoonStab(u, target){
   if(Math.random() < 0.4){
     const reduced = applySpDamage(target,5,{sourceId:u.id});
     appendLog(`${target.name} SP -${reduced}（恐惧）`);
-    target.status.paralyzed = (target.status.paralyzed||0) + 1;
+    addStatusStacks(target,'paralyzed',1,{label:'恐惧', type:'debuff'});
     appendLog(`${target.name} 下回合 -1 步`);
   }
   u.dmgDone += dmg; unitActed(u);
@@ -1150,7 +1288,9 @@ async function haz_GodFork(u, target){
   if(Math.random()<0.5){ dmg = Math.round(dmg*2.0); appendLog('猎神之叉 暴怒加成 x2.0'); }
   cameraFocusOnCell(target.r, target.c);
   damageUnit(target.id, dmg, 15, `${u.name} 猎神之叉 重击 ${target.name}`, u.id);
-  target.status.bleed = Math.max(target.status.bleed||0, 2); appendLog(`${target.name} 附加流血（2回合，每回合 -5%最大HP）`);
+  const bleedStacks = Math.max(target.status.bleed||0, 2);
+  updateStatusStacks(target,'bleed', bleedStacks,{label:'流血', type:'debuff'});
+  appendLog(`${target.name} 附加流血（2回合，每回合 -5%最大HP）`);
   if(!hazMarkedTargetId){ hazMarkedTargetId = target.id; appendLog(`猎杀标记：${target.name} 被标记，七海对其伤害 +15%`); }
   u.dmgDone += dmg; unitActed(u);
 }
@@ -1175,7 +1315,7 @@ async function haz_WhaleFall(u){
     const tu = getUnitAt(c.r,c.c);
     if(tu && tu.side!=='enemy' && !set.has(tu.id)){
       damageUnit(tu.id, 50, 20, `${u.name} 鲸落 轰击 ${tu.name}`, u.id, {ignoreCover:true});
-      tu.status.paralyzed = (tu.status.paralyzed||0) + 1;
+      addStatusStacks(tu,'paralyzed',1,{label:'恐惧', type:'debuff'});
       set.add(tu.id); hits++;
     }
   }
@@ -1207,7 +1347,8 @@ async function haz_PayThePrice(u, desc){
     const tu=getUnitAt(c.r,c.c);
     if(tu && tu.side!=='enemy' && !seen.has(tu.id)){
       damageUnit(tu.id,15,0,`${u.name} 付出代价·横斩 命中 ${tu.name}`, u.id);
-      tu.status.hazBleedTurns = 2; appendLog(`${tu.name} 附加 Haz流血(2)`); seen.add(tu.id); h3++;
+      updateStatusStacks(tu,'hazBleedTurns',2,{label:'Haz流血', type:'debuff'});
+      appendLog(`${tu.name} 附加 Haz流血(2)`); seen.add(tu.id); h3++;
     }
   }
   appendLog(`付出代价：前刺${h1}/穿刺${h2}/横斩${h3}`);
@@ -1237,7 +1378,8 @@ async function haz_ForkOfHatred(u, desc){
     const tu=getUnitAt(c.r,c.c);
     if(tu && tu.side!=='enemy' && !seen2.has(tu.id)){
       damageUnit(tu.id,20,0,`${u.name} 仇恨之叉·重砸 命中 ${tu.name}`, u.id, {ignoreCover:true});
-      tu.status.hazBleedTurns = 2; appendLog(`${tu.name} 附加 Haz流血(2)`);
+      updateStatusStacks(tu,'hazBleedTurns',2,{label:'Haz流血', type:'debuff'});
+      appendLog(`${tu.name} 附加 Haz流血(2)`);
       seen2.add(tu.id); h2++;
     }
   }
@@ -1264,7 +1406,7 @@ async function katz_ChainWhip(u,desc){
     const tu=getUnitAt(c.r,c.c);
     if(tu && tu.side!=='enemy' && !set.has(tu.id)){
       damageUnit(tu.id,25,0,`${u.name} 链式鞭击 命中 ${tu.name}`, u.id);
-      tu.status.paralyzed = (tu.status.paralyzed||0) + 1;
+      addStatusStacks(tu,'paralyzed',1,{label:'恐惧', type:'debuff'});
       set.add(tu.id); hits++;
     }
   }
@@ -1406,7 +1548,8 @@ async function neyla_PierceSnipe(u, desc){
     const tu=getUnitAt(c.r,c.c);
     if(tu && tu.side!=='enemy' && !set.has(tu.id)){
       damageUnit(tu.id,30,0,`${u.name} 穿刺狙击 命中 ${tu.name}`, u.id);
-      tu.status.bleed = Math.max(tu.status.bleed||0, 2);
+      const bleedNext = Math.max(tu.status.bleed||0, 2);
+      updateStatusStacks(tu,'bleed', bleedNext,{label:'流血', type:'debuff'});
       set.add(tu.id); hits++;
     }
   }
@@ -1437,7 +1580,7 @@ async function neyla_DoubleHook(u, desc){
     target.r = stepCell.r; target.c = stepCell.c; pulseCell(target.r,target.c);
     appendLog(`${target.name} 被双钩拉近一格`);
   }
-  target.status.paralyzed = (target.status.paralyzed||0) + 1;
+  addStatusStacks(target,'paralyzed',1,{label:'恐惧', type:'debuff'});
   appendLog(`${target.name} 因双钩牵制：下回合 -1 步`);
   const dmg = calcOutgoingDamage(u,15,target,'双钩牵制');
   damageUnit(target.id, dmg, 0, `${u.name} 双钩牵制 命中 ${target.name}`, u.id);
@@ -1504,8 +1647,8 @@ async function kyn_ThroatBlade(u, aim){
   const dmg = calcOutgoingDamage(u,20,tu,'割喉飞刃');
   cameraFocusOnCell(tu.r, tu.c);
   damageUnit(tu.id, dmg, 0, `${u.name} 割喉飞刃 命中 ${tu.name}`, u.id);
-  tu.status.bleed = (tu.status.bleed||0) + 1;
-  tu.status.paralyzed = (tu.status.paralyzed||0) + 1;
+  addStatusStacks(tu,'bleed',1,{label:'流血', type:'debuff'});
+  addStatusStacks(tu,'paralyzed',1,{label:'恐惧', type:'debuff'});
   appendLog(`${tu.name} 附加 流血+1、恐惧+1`);
   unitActed(u);
 }
@@ -1599,6 +1742,18 @@ function buildSkillFactoriesForUnit(u){
         (uu,aim)=> adoraFieldMedic(uu,aim),
         {aoe:false},
         {cellTargeting:true, castMs:900}
+      )},
+      { key:'加油哇！', prob:0.20, cond:()=>u.level>=25, make:()=> skill('加油哇！',4,'orange','以自身为中心5x5内选择友方：赋予 1 层“鸡血”（下一次攻击伤害翻倍，使用后移除）',
+        (uu)=> range_square_n(uu,2).filter(p=>{ const tu=getUnitAt(p.r,p.c); return tu && tu.side===uu.side; }),
+        (uu,aim)=> adoraCheer(uu,aim),
+        {aoe:false},
+        {cellTargeting:true, castMs:900}
+      )},
+      { key:'只能靠你了。。', prob:0.15, cond:()=>u.level>=35, make:()=> skill('只能靠你了。。',4,'orange','牺牲25HP；以自身为中心5格范围友方，赋予1层“依赖”（下一次攻击造成真实伤害并清空自身SP）',
+        (uu)=> range_square_n(uu,5).filter(p=>{ const tu=getUnitAt(p.r,p.c); return tu && tu.side===uu.side; }),
+        (uu,aim)=> adoraDepend(uu,aim),
+        {aoe:false},
+        {cellTargeting:true, castMs:900}
       )}
     );
   } else if(u.id==='dario'){
@@ -1633,6 +1788,14 @@ function buildSkillFactoriesForUnit(u){
         (uu,desc)=> darioPull(uu,desc),
         {aoe:true},
         {castMs:1100}
+      )}
+    );
+    F.push(
+      { key:'先苦后甜', prob:0.15, cond:()=>u.level>=25 && ((u.skillPool||[]).filter(s=>s && s.name==='先苦后甜').length < 2), make:()=> skill('先苦后甜',4,'orange','自我激励：下个玩家回合额外 +4 步（技能池最多保留2张）',
+        (uu)=>[{r:uu.r,c:uu.c,dir:uu.facing}],
+        (uu)=> darioSweetAfterBitter(uu),
+        {},
+        {castMs:700}
       )}
     );
   } else if(u.id==='karma'){
@@ -1723,7 +1886,7 @@ function buildSkillFactoriesForUnit(u){
         )},
         { key:'怨念滋生', prob:0.33, cond:()=>true, make:()=> skill('怨念滋生',1,'green','全图：对被猎杀标记目标 施加1流血+1恐惧',
           (uu)=>[{r:uu.r,c:uu.c,dir:uu.facing}],
-          (uu)=> { if(!hazMarkedTargetId){ appendLog('怨念滋生：没有被标记的目标'); unitActed(uu); return; } const t=units[hazMarkedTargetId]; if(!t||t.hp<=0){ appendLog('怨念滋生：标记目标不存在或已倒下'); unitActed(uu); return; } addTempClassToCells([{r:t.r,c:t.c}],'highlight-tele',TELEGRAPH_MS); setTimeout(()=>{ t.status.bleed=(t.status.bleed||0)+1; t.status.paralyzed=(t.status.paralyzed||0)+1; appendLog(`${uu.name} 怨念滋生：对 ${t.name} 施加 1层流血 与 1层恐惧`); }, TELEGRAPH_MS); unitActed(uu); },
+        (uu)=> { if(!hazMarkedTargetId){ appendLog('怨念滋生：没有被标记的目标'); unitActed(uu); return; } const t=units[hazMarkedTargetId]; if(!t||t.hp<=0){ appendLog('怨念滋生：标记目标不存在或已倒下'); unitActed(uu); return; } addTempClassToCells([{r:t.r,c:t.c}],'highlight-tele',TELEGRAPH_MS); setTimeout(()=>{ addStatusStacks(t,'bleed',1,{label:'流血', type:'debuff'}); addStatusStacks(t,'paralyzed',1,{label:'恐惧', type:'debuff'}); appendLog(`${uu.name} 怨念滋生：对 ${t.name} 施加 1层流血 与 1层恐惧`); }, TELEGRAPH_MS); unitActed(uu); },
           {},
           {castMs:800}
         )},
@@ -2019,6 +2182,7 @@ function buildGrid(){
   battleAreaEl.style.setProperty('--cell', `${CELL_SIZE}px`);
   battleAreaEl.style.gridTemplateColumns = `repeat(${COLS}, var(--cell))`;
   battleAreaEl.style.gridTemplateRows = `repeat(${ROWS}, var(--cell))`;
+  const preservedFxLayer = fxLayer;
   battleAreaEl.innerHTML = '';
   for(let r=1;r<=ROWS;r++){
     for(let c=1;c<=COLS;c++){
@@ -2053,6 +2217,9 @@ function buildGrid(){
       cell.addEventListener('contextmenu', (e)=>{ e.preventDefault(); if(interactionLocked) return; clearSkillAiming(); renderAll(); });
       battleAreaEl.appendChild(cell);
     }
+  }
+  if(preservedFxLayer){
+    battleAreaEl.appendChild(preservedFxLayer);
   }
 }
 function refreshLargeOverlays(){
@@ -2205,6 +2372,8 @@ function summarizeNegatives(u){
   if(u.status.bleed>0) parts.push(`流血x${u.status.bleed}`);
   if(u.status.hazBleedTurns>0) parts.push(`Haz流血x${u.status.hazBleedTurns}`);
   if(u.status.recoverStacks>0) parts.push(`恢复x${u.status.recoverStacks}`);
+  if(u.status.jixueStacks>0) parts.push(`鸡血x${u.status.jixueStacks}`);
+  if(u.status.dependStacks>0) parts.push(`依赖x${u.status.dependStacks}`);
   if(u._spBroken) parts.push(`SP崩溃`);
   if(hazMarkedTargetId && u.id === hazMarkedTargetId) parts.push('猎杀标记');
   if(u._stanceType && u._stanceTurns>0){
@@ -2614,6 +2783,12 @@ function finishEnemyTurn(){
   setTimeout(()=>{
     currentSide='player';
     playerSteps=computeBaseSteps();
+    if(playerBonusStepsNextTurn>0){
+      const bonus = playerBonusStepsNextTurn;
+      playerSteps += bonus;
+      appendLog(`先苦后甜：玩家额外 +${bonus} 步`);
+      playerBonusStepsNextTurn = 0;
+    }
     appendLog('敌方回合结束，玩家回合开始');
     applyLevelSuppression();
     applyParalysisAtTurnStart('player');
