@@ -202,6 +202,7 @@ units['kyn']  = createUnit('kyn','Kyn','enemy',51, 7,15, 250,70, 1.0,0, ['kynRet
 const DIRS = { up:{dr:-1,dc:0}, down:{dr:1,dc:0}, left:{dr:0,dc:-1}, right:{dr:0,dc:1} };
 function mdist(a,b){ return Math.abs(a.r-b.r)+Math.abs(a.c-b.c); }
 function cardinalDirFromDelta(dr,dc){ if(Math.abs(dr)>=Math.abs(dc)) return dr<=0?'up':'down'; return dc<=0?'left':'right'; }
+function setUnitFacing(u, dir){ if(!u || !dir) return; if(!DIRS[dir]) return; u.facing = dir; }
 function clampValue(value, min, max){ return Math.max(min, Math.min(max, value)); }
 function forwardCellAt(u, dir, dist){
   const d=DIRS[dir]; const r=u.r + d.dr*dist, c=u.c + d.dc*dist;
@@ -1771,6 +1772,11 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
   const buffStage = opts.buffStage || 'final';
   let trueDamage = !!opts.trueDamage;
 
+  if(source && source !== u){
+    const dirToTarget = cardinalDirFromDelta(u.r - source.r, u.c - source.c);
+    setUnitFacing(source, dirToTarget);
+  }
+
   if(source){
     if(source.side === u.side){ appendLog(`友伤无效：${source.name} -> ${u.name}`); return; }
 
@@ -1916,6 +1922,7 @@ function showTrail(r1,c1,r2,c2,{thickness=6,color=null}={}){
 // —— 玩家/敌方技能 —— 
 function playerGunExec(u, desc){
   const dir = desc && desc.dir ? desc.dir : u.facing;
+  setUnitFacing(u, dir);
   const muzzle = forwardCellAt(u, dir, 1) || {r:u.r,c:u.c};
   cameraFocusOnCell(muzzle.r, muzzle.c);
   const line = forwardLineAt(u,dir);
@@ -1939,6 +1946,10 @@ function adoraDagger(u,target){
 function adoraPanicMove(u, payload){
   const dest = payload && payload.moveTo; if(!dest){ appendLog('无效的目的地'); return; }
   cameraFocusOnCell(dest.r, dest.c); showTrail(u.r,u.c,dest.r,dest.c);
+  if(dest.r !== u.r || dest.c !== u.c){
+    const dir = cardinalDirFromDelta(dest.r - u.r, dest.c - u.c);
+    setUnitFacing(u, dir);
+  }
   u.r=dest.r; u.c=dest.c; pulseCell(u.r,u.c);
   showSkillFx('adora:呀！你不要靠近我呀！！',{target:u});
   for(const d of Object.keys(DIRS)){
@@ -1977,6 +1988,10 @@ function darioClaw(u,target){
 function darioSwiftMove(u, payload){
   const dest = payload && payload.moveTo; if(!dest){ appendLog('无效的目的地'); return; }
   cameraFocusOnCell(dest.r, dest.c); showTrail(u.r,u.c,dest.r,dest.c);
+  if(dest.r !== u.r || dest.c !== u.c){
+    const dir = cardinalDirFromDelta(dest.r - u.r, dest.c - u.c);
+    setUnitFacing(u, dir);
+  }
   u.r=dest.r; u.c=dest.c; pulseCell(u.r,u.c);
   showSkillFx('dario:迅捷步伐',{target:u});
   const enemies = Object.values(units).filter(x=>x.side!==u.side && x.hp>0);
@@ -2037,6 +2052,10 @@ function adoraDepend(u, aim){
 function karmaObeyMove(u, payload){
   const dest = payload && payload.moveTo; if(!dest){ appendLog('无效的目的地'); return; }
   cameraFocusOnCell(dest.r, dest.c); showTrail(u.r,u.c,dest.r,dest.c);
+  if(dest.r !== u.r || dest.c !== u.c){
+    const dir = cardinalDirFromDelta(dest.r - u.r, dest.c - u.c);
+    setUnitFacing(u, dir);
+  }
   u.r = dest.r; u.c = dest.c; pulseCell(u.r,u.c);
   showSkillFx('karma:都听你的',{target:u});
   if(u.consecAttacks > 0){ appendLog(`${u.name} 的连击被打断（移动）`); u.consecAttacks = 0; }
@@ -2062,30 +2081,46 @@ function unitActed(u){
   if(!u) return;
   u.actionsThisTurn = Math.max(0, (u.actionsThisTurn||0)+1);
 
+  let statusNeedsRefresh = false;
+  let requireFullRender = false;
+
   if(u._jixueActivated){
-    if(u.status && u.status.jixueStacks>0){
-      u.status.jixueStacks = Math.max(0, u.status.jixueStacks - 1);
-      appendLog(`${u.name} 的“鸡血”消散`);
+    if(u.status){
+      const prev = u.status.jixueStacks || 0;
+      if(prev>0){
+        updateStatusStacks(u,'jixueStacks', Math.max(0, prev - 1), {label:'鸡血', type:'buff'});
+        appendLog(`${u.name} 的“鸡血”消散`);
+        statusNeedsRefresh = true;
+      }
     }
     u._jixueActivated = false;
   }
 
   if(u._dependUnleash){
-    if(u.status && u.status.dependStacks>0){
-      u.status.dependStacks = 0;
-      const beforeSp = u.sp;
-      u.sp = 0;
-      u._spBroken = (u.sp<=0);
-      if(beforeSp>0){
-        appendLog(`${u.name} 的“依赖”消散：SP 清空`);
-        showDamageFloat(u,0,beforeSp);
-      } else {
-        appendLog(`${u.name} 的“依赖”消散：SP 已为 0`);
+    if(u.status){
+      const prev = u.status.dependStacks || 0;
+      if(prev>0){
+        updateStatusStacks(u,'dependStacks', 0, {label:'依赖', type:'buff'});
+        const beforeSp = u.sp;
+        u.sp = 0;
+        u._spBroken = (u.sp<=0);
+        if(beforeSp>0){
+          appendLog(`${u.name} 的“依赖”消散：SP 清空`);
+          showDamageFloat(u,0,beforeSp);
+        } else {
+          appendLog(`${u.name} 的“依赖”消散：SP 已为 0`);
+        }
+        handleSpCrashIfNeeded(u);
+        requireFullRender = true;
       }
-      handleSpCrashIfNeeded(u);
-      renderAll();
     }
     u._dependUnleash = false;
+  }
+
+  if(requireFullRender){
+    renderAll();
+  } else if(statusNeedsRefresh){
+    renderStatus();
   }
 }
 function karmaPunch(u,target){
@@ -3277,6 +3312,7 @@ function placeUnits(){
     div.className='unit ' + (u.side==='player'?'player':'enemy');
     if(u.id==='haz'){ div.classList.add('haz-glow'); if(u._comeback) div.classList.add('comeback'); }
     div.dataset.id=id;
+    div.dataset.facing = u.facing || 'right';
 
     div.addEventListener('click',(e)=>{
       if(interactionLocked) return;
@@ -3301,6 +3337,9 @@ function placeUnits(){
       <div class="hpbar"><div class="hpfill" style="width:${hpPct}%"></div></div>
       <div class="spbar"><div class="spfill" style="width:${spPct}%"></div></div>
     `;
+    const facingArrow=document.createElement('div');
+    facingArrow.className='facing-arrow';
+    div.appendChild(facingArrow);
     cell.appendChild(div);
   }
 }
@@ -3321,6 +3360,7 @@ function renderLargeUnitOverlay(u){
 
   const overlay = document.createElement('div');
   overlay.className = 'largeOverlay ' + (u.side==='player'?'player':'enemy');
+  overlay.dataset.facing = u.facing || 'right';
   overlay.style.position = 'absolute';
   overlay.style.left = left + 'px';
   overlay.style.top  = top  + 'px';
@@ -3356,6 +3396,9 @@ function renderLargeUnitOverlay(u){
     <div class="hpbar"><div class="hpfill" style="width:${hpPct}%"></div></div>
     <div class="spbar"><div class="spfill" style="width:${spPct}%"></div></div>
   `;
+  const facingArrow=document.createElement('div');
+  facingArrow.className='facing-arrow';
+  overlay.appendChild(facingArrow);
 
   battleAreaEl.appendChild(overlay);
 }
@@ -3503,6 +3546,10 @@ function handleSkillConfirmCell(u, sk, aimCell){
 
   if(u.side==='player'){ playerSteps = Math.max(0, playerSteps - sk.cost); } else { enemySteps = Math.max(0, enemySteps - sk.cost); }
 
+  if(aimDir && (aimCell.r !== u.r || aimCell.c !== u.c)){
+    setUnitFacing(u, aimDir);
+  }
+
   const targetUnit = getUnitAt(aimCell.r, aimCell.c);
   try{
     if(sk.meta && sk.meta.moveSkill) sk.execFn(u, {moveTo: aimCell});
@@ -3553,7 +3600,8 @@ function onCellClick(r,c){
 
   if(sel.size===2){ if(!canPlace2x2(sel, r, c)){ appendLog('该位置无法容纳 2x2 单位'); return; } }
 
-  sel.facing = (c>sel.c)?'right':(c<sel.c?'left':sel.facing);
+  const moveDir = cardinalDirFromDelta(r - sel.r, c - sel.c);
+  setUnitFacing(sel, moveDir);
   sel.r=r; sel.c=c;
   if(sel.side==='player') playerSteps=Math.max(0, playerSteps-1); else enemySteps=Math.max(0, enemySteps-1);
   appendLog(`${sel.name} 移动到 (${r},${c})`);
@@ -3928,9 +3976,9 @@ function tryStepsToward(u, target){
     const cand = forwardCellAt(u,dir,1);
     if(!cand) continue;
     if(u.size===2){
-      if(canPlace2x2(u, cand.r, cand.c)){ u.r=cand.r; u.c=cand.c; u.facing=dir; return {moved:true}; }
+      if(canPlace2x2(u, cand.r, cand.c)){ u.r=cand.r; u.c=cand.c; setUnitFacing(u, dir); return {moved:true}; }
     } else {
-      if(!getUnitAt(cand.r,cand.c)){ u.r=cand.r; u.c=cand.c; u.facing=dir; return {moved:true}; }
+      if(!getUnitAt(cand.r,cand.c)){ u.r=cand.r; u.c=cand.c; setUnitFacing(u, dir); return {moved:true}; }
     }
   }
   return {moved:false};
@@ -4020,6 +4068,19 @@ async function execEnemySkillCandidate(en, cand){
   await aiAwait(ENEMY_WINDUP_MS);
   clearHighlights();
 
+  let faceDir = null;
+  if(cand.targetUnit){
+    const tu = cand.targetUnit;
+    if(tu.r !== en.r || tu.c !== en.c){
+      faceDir = cardinalDirFromDelta(tu.r - en.r, tu.c - en.c);
+    }
+  } else if(cand.dir){
+    faceDir = cand.dir;
+  }
+  if(faceDir){
+    setUnitFacing(en, faceDir);
+  }
+
   try{
     if(cand.targetUnit && cand.sk.meta && cand.sk.meta.cellTargeting){
       await cand.sk.execFn(en, {r:cand.targetUnit.r, c:cand.targetUnit.c});
@@ -4046,7 +4107,7 @@ function stepTowardNearestPlayer(en){
   // BFS toward any player's adjacent cell
   const step = bfsNextStepTowardAny(en, players);
   if(step){
-    en.facing = step.dir || en.facing;
+    setUnitFacing(en, step.dir || en.facing);
     en.r = step.r; en.c = step.c;
     enemySteps = Math.max(0, enemySteps - 1);
     updateStepsUI();
@@ -4129,7 +4190,7 @@ async function exhaustEnemySteps(){
         if(canUnitMove(en) && neigh.length){
           const pick = neigh[Math.floor(Math.random()*neigh.length)];
           en.r = pick.r; en.c = pick.c;
-          en.facing = pick.dir || en.facing;
+          setUnitFacing(en, pick.dir || en.facing);
           enemySteps = Math.max(0, enemySteps - 1);
           updateStepsUI();
           cameraFocusOnCell(en.r,en.c);
