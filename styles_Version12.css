@@ -265,6 +265,7 @@ body {
 .skillCard.green { border-left-color: #52c41a; }
 .skillCard.red { border-left-color: #ff7875; }
 .skillCard.blue { border-left: 6px solid #1890ff !important; }
+.skillCard.orange { border-left-color: #fa8c16; }
 .skillCard:hover { transform: translateY(-1px); background: #141c2b; }
 .skillCard.disabled { opacity: .6; filter: grayscale(0.1); cursor: not-allowed; }
 
