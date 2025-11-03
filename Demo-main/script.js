@@ -2313,15 +2313,16 @@ async function khathia_Overwork(u, dir){
   
   // Stage 3: Extended area from same position to map edge (width 2, depth to edge)
   // Calculate maximum depth based on direction and position
+  // For 2x2 unit at (r,c), occupies rows r,r+1 and columns c,c+1
   let maxDepth = 2;
   if(dir === 'down'){
-    maxDepth = ROWS - (u.r + 1); // Distance to bottom edge from bottom of 2x2 unit
+    maxDepth = ROWS - (u.r + 1); // From bottom edge (r+2) to map bottom (ROWS)
   } else if(dir === 'up'){
-    maxDepth = u.r - 1; // Distance to top edge from top of 2x2 unit
+    maxDepth = u.r - 1; // From top edge (r-1) to map top (1)
   } else if(dir === 'left'){
-    maxDepth = u.c - 1; // Distance to left edge
+    maxDepth = u.c - 1; // From left edge (c-1) to map left (1)
   } else if(dir === 'right'){
-    maxDepth = COLS - (u.c + 1); // Distance to right edge
+    maxDepth = COLS - (u.c + 1); // From right edge (c+2) to map right (COLS)
   }
   
   const third = forwardRect2x2(u, dir, 2, maxDepth);
@@ -2530,6 +2531,7 @@ function buildSkillFactoriesForUnit(u){
         (uu,aimDir)=> { 
           const dir=aimDir||uu.facing; 
           // Show the maximum range (stage 3) for targeting
+          // For 2x2 unit, calculate depth to map edge in attack direction
           let maxDepth = 2;
           if(dir === 'down'){ maxDepth = ROWS - (uu.r + 1); }
           else if(dir === 'up'){ maxDepth = uu.r - 1; }
