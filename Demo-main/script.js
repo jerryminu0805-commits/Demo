@@ -2509,25 +2509,34 @@ function buildSkillFactoriesForUnit(u){
   } else if(u.id==='khathia'){
     F.push(
       { key:'血肉之刃', prob:0.70, cond:()=>true, make:()=> skill('血肉之刃',1,'green','前方2x1：15HP+10HP，多段叠怨念',
-        (uu,aimDir)=> { const dir=aimDir||uu.facing; return forwardRectCentered(uu,dir,2,1).map(c=>({...c,dir})); },
+        (uu,aimDir)=> { const dir=aimDir||uu.facing; return forwardRect2x2(uu,dir,2,1).map(c=>({...c,dir})); },
         (uu,desc)=> { const dir = desc && desc.dir ? desc.dir : uu.facing; khathia_FleshBlade(uu, dir); },
         {},
         {castMs:1100}
       )},
       { key:'怨念之爪', prob:0.70, cond:()=>true, make:()=> skill('怨念之爪',1,'green','前方2x2：10HP+15SP并叠怨念',
-        (uu,aimDir)=> { const dir=aimDir||uu.facing; return forwardRectCentered(uu,dir,2,2).map(c=>({...c,dir})); },
+        (uu,aimDir)=> { const dir=aimDir||uu.facing; return forwardRect2x2(uu,dir,2,2).map(c=>({...c,dir})); },
         (uu,desc)=> { const dir = desc && desc.dir ? desc.dir : uu.facing; khathia_GrudgeClaw(uu, dir); },
         {},
         {castMs:1100}
       )},
       { key:'蛮横横扫', prob:0.60, cond:()=>true, make:()=> skill('蛮横横扫',2,'red','前方4x2：20HP并附恐惧',
-        (uu,aimDir)=> { const dir=aimDir||uu.facing; return forwardRectCentered(uu,dir,4,2).map(c=>({...c,dir})); },
+        (uu,aimDir)=> { const dir=aimDir||uu.facing; return forwardRect2x2(uu,dir,4,2).map(c=>({...c,dir})); },
         (uu,desc)=> { const dir = desc && desc.dir ? desc.dir : uu.facing; khathia_BrutalSweep(uu, dir); },
         {aoe:true},
         {castMs:1400}
       )},
-      { key:'能者多劳', prob:0.45, cond:()=>true, make:()=> skill('能者多劳',2,'red','多段：前2x2→左侧2x2→前4x2，叠怨念并削SP',
-        (uu,aimDir)=> { const dir=aimDir||uu.facing; return forwardRectCentered(uu,dir,4,2).map(c=>({...c,dir})); },
+      { key:'能者多劳', prob:0.45, cond:()=>true, make:()=> skill('能者多劳',2,'red','多段：前2x2→同区→至边缘，叠怨念并削SP',
+        (uu,aimDir)=> { 
+          const dir=aimDir||uu.facing; 
+          // Show the maximum range (stage 3) for targeting
+          let maxDepth = 2;
+          if(dir === 'down'){ maxDepth = ROWS - (uu.r + 1); }
+          else if(dir === 'up'){ maxDepth = uu.r - 1; }
+          else if(dir === 'left'){ maxDepth = uu.c - 1; }
+          else if(dir === 'right'){ maxDepth = COLS - (uu.c + 1); }
+          return forwardRect2x2(uu,dir,2,maxDepth).map(c=>({...c,dir})); 
+        },
         (uu,desc)=> { const dir = desc && desc.dir ? desc.dir : uu.facing; khathia_Overwork(uu, dir); },
         {aoe:true},
         {castMs:1900}
