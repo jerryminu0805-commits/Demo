@@ -2402,7 +2402,7 @@ function showGodsWillMenuAtUnit(u){
     appendLog(`GOD'S WILL：${u.name} 被直接抹除（-${before} HP）`);
     cameraShake(); 
     showHitFX(u.r,u.c); 
-    showDamageFloat(u.r,u.c,before,0);
+    showDamageFloat(u,before,0);
     renderAll();
     disarmGodsWill();
   };
@@ -2415,7 +2415,7 @@ function showGodsWillMenuAtUnit(u){
       appendLog(`GOD'S WILL：${u.name} 被压到 1 HP（-${delta} HP）`);
       cameraShake(); 
       showHitFX(u.r,u.c); 
-      showDamageFloat(u.r,u.c,delta,0);
+      showDamageFloat(u,delta,0);
     } else {
       appendLog(`GOD'S WILL：${u.name} 已是 1 HP`);
     }
