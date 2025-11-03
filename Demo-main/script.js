@@ -2068,7 +2068,8 @@ function adoraFieldMedic(u, aim){
   t.hp = Math.min(t.maxHp, t.hp + healHp);
   t.sp = Math.min(t.maxSp, t.sp + healSp);
   syncSpBroken(t);
-  updateStatusStacks(t,'recoverStacks', (t.status.recoverStacks||0) + 1, {label:'恢复', type:'buff'});
+  const currentStacks = (t.status && t.status.recoverStacks) ? t.status.recoverStacks : 0;
+  updateStatusStacks(t,'recoverStacks', currentStacks + 1, {label:'恢复', type:'buff'});
   pulseCell(t.r, t.c);
   showGainFloat(t, healHp, healSp);
   showSkillFx('adora:略懂的医术！', {target:t});
@@ -3047,7 +3048,7 @@ async function handleSkillConfirmCell(u, sk, aimCell){
     else result = sk.execFn(u, {r:aimCell.r,c:aimCell.c,dir:aimDir});
     
     // Lock interactions for async multi-stage attacks
-    if(result && typeof result.then === 'function'){
+    if(result instanceof Promise){
       setInteractionLocked(true);
       await result;
       setInteractionLocked(false);
