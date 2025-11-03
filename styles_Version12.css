@@ -131,7 +131,11 @@ body {
 
 .hpbar, .spbar { width: 90%; height: 10px; background: #0e121b; border-radius: 99px; overflow: hidden; border: 1px solid #1c2334; margin: 2px 0; }
 .hpfill { height: 100%; background: linear-gradient(90deg, #ff7875, #ff4d4f); }
-.spfill { height: 100%; background: linear-gradient(90deg, #36cfc9, #13c2c2); }
+.spbar.positive { background: #0e121b; border-color: #1c2334; }
+.spbar.negative { background: #1a1023; border-color: #2f1f48; }
+.spfill { height: 100%; transition: width .18s ease; }
+.spfill.positive { background: linear-gradient(90deg, #36cfc9, #13c2c2); }
+.spfill.negative { background: linear-gradient(90deg, #b37aff, #9254de); }
 
 .unit .facing-arrow,
 .largeOverlay .facing-arrow {
