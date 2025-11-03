@@ -2158,14 +2158,16 @@ function karmaGrip(u,target){
   }
   unitActed(u);
 }
-function unitActed(u){
+function markSkillUsed(u){
   if(!u) return;
-  u.actionsThisTurn = Math.max(0, (u.actionsThisTurn||0)+1);
-  
   // Mark that Khathia has used a skill this turn (for movement restriction)
   if(u.id === 'khathia'){
     u._usedSkillThisTurn = true;
   }
+}
+function unitActed(u){
+  if(!u) return;
+  u.actionsThisTurn = Math.max(0, (u.actionsThisTurn||0)+1);
 
   let statusNeedsRefresh = false;
   let requireFullRender = false;
@@ -2246,6 +2248,7 @@ function rotateDirCounterClockwise(dir){
   }
 }
 async function khathia_FleshBlade(u, dir){
+  markSkillUsed(u);
   const area = forwardRect2x2(u, dir, 2, 1);
   if(area.length===0){ appendLog('血肉之刃：前方没有可以攻击的格子'); unitActed(u); return; }
   await telegraphThenImpact(area);
@@ -2264,6 +2267,7 @@ async function khathia_FleshBlade(u, dir){
   unitActed(u);
 }
 async function khathia_GrudgeClaw(u, dir){
+  markSkillUsed(u);
   const area = forwardRect2x2(u, dir, 2, 2);
   if(area.length===0){ appendLog('怨念之爪：前方没有可以抓取的目标'); unitActed(u); return; }
   await telegraphThenImpact(area);
@@ -2277,6 +2281,7 @@ async function khathia_GrudgeClaw(u, dir){
   unitActed(u);
 }
 async function khathia_BrutalSweep(u, dir){
+  markSkillUsed(u);
   const area = forwardRect2x2(u, dir, 4, 2);
   if(area.length===0){ appendLog('蛮横横扫：范围内没有敌人'); unitActed(u); return; }
   await telegraphThenImpact(area);
@@ -2291,6 +2296,7 @@ async function khathia_BrutalSweep(u, dir){
   unitActed(u);
 }
 async function khathia_Overwork(u, dir){
+  markSkillUsed(u);
   // Stage 1: 2x2 area, 2 steps forward
   const first = forwardRect2x2(u, dir, 2, 2);
   if(first.length===0){ appendLog('能者多劳：前方没有空间'); unitActed(u); return; }
@@ -2345,6 +2351,7 @@ async function khathia_Overwork(u, dir){
   unitActed(u);
 }
 async function khathia_AgonyRoar(u){
+  markSkillUsed(u);
   const before = u.sp;
   u.sp = u.maxSp;
   syncSpBroken(u);
@@ -2368,6 +2375,7 @@ async function khathia_AgonyRoar(u){
   unitActed(u);
 }
 async function khathia_FinalStruggle(u){
+  markSkillUsed(u);
   const area = range_square_n(u,5);
   if(area.length===0){ unitActed(u); return; }
   await telegraphThenImpact(area);
@@ -3142,7 +3150,7 @@ function showSelected(u){
           if(sk.meta && sk.meta.moveSkill && !canUnitMove(u)){ appendLog(`${u.name} 处于姿态中，无法移动`); return; }
           
           // Khathia restriction: cannot cast skill after moving
-          if(u.id === 'khathia' && (u.stepsMovedThisTurn || 0) > 0){
+          if(u.id === 'khathia' && u.stepsMovedThisTurn > 0){
             appendLog(`${u.name} 已移动，本回合不能再施放技能`);
             return;
           }
