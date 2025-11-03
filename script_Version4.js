@@ -2256,20 +2256,213 @@ function rangeIncludeCell(cells, aimCell){
   return cells.some(c=>c.r===aimCell.r && c.c===aimCell.c); 
 }
 
+// —— Helper functions for gameplay ——
+function clearHighlights(){ 
+  highlighted.clear(); 
+  document.querySelectorAll('.cell').forEach(cell=>cell.classList.remove('highlight-move','highlight-skill','highlight-skill-target','pulse','highlight-tele','highlight-imp','highlight-stage')); 
+}
+
+function markCell(r,c,kind){
+  const cell=getCellEl(r,c);
+  if(cell && !cell.classList.contains('void')){
+    cell.classList.add(kind==='move'?'highlight-move':(kind==='target'?'highlight-skill-target':'highlight-skill'));
+  }
+}
+
+function canUnitMove(u){
+  if(!u) return false;
+  if(u._stanceType && u._stanceTurns>0) return false;
+  return true;
+}
+
+function clearSkillAiming(){ 
+  _skillSelection=null; 
+  clearHighlights(); 
+}
+
+function showSelected(u){
+  clearSkillAiming();
+  const base=`<strong>${u.name}</strong><br>HP: ${u.hp}/${u.maxHp} SP:${u.sp}/${u.maxSp} ${summarizeNegatives(u)}`;
+  if(selectedInfo) selectedInfo.innerHTML = base;
+  
+  if(skillPool){
+    if(u.side==='enemy'){ 
+      skillPool.innerHTML = `<div class="partyRow small">敌方单位（AI 控制），无法操作</div>`; 
+    } else if(currentSide!=='player'){ 
+      skillPool.innerHTML = `<div class="partyRow small">不是你的回合</div>`; 
+    } else {
+      skillPool.innerHTML = '<div class="partyRow small">手牌系统未完全实现</div>';
+    }
+  }
+
+  clearHighlights();
+  if(u.side===currentSide && !u.status.stunned && u.side==='player' && canUnitMove(u)){
+    const moves=range_move_radius(u,1).filter(p=>!getUnitAt(p.r,p.c));
+    for(const m of moves){ 
+      const key=`${m.r},${m.c}`; 
+      highlighted.add(key); 
+      markCell(m.r,m.c,'move'); 
+    }
+  }
+}
+
 function handleSkillConfirmCell(u, sk, aimCell){
-  appendLog(`handleSkillConfirmCell stub called for ${u.name} with ${sk.name}`);
+  if(interactionLocked || !u || u.hp<=0) return;
+  if(!_skillSelection) return;
+  appendLog(`技能执行：${u.name} 使用 ${sk.name}（手牌系统未完全实现）`);
+  clearSkillAiming();
+  renderAll();
 }
 
 function onUnitClick(id){
-  appendLog(`Unit clicked: ${id}`);
+  if(interactionLocked) return;
+  const u=units[id]; 
+  if(!u) return;
+  if(godsWillArmed){ 
+    showGodsWillMenuAtUnit(u); 
+    return; 
+  }
+  if(u.side==='enemy' && ENEMY_IS_AI_CONTROLLED){ 
+    appendLog('敌方单位由 AI 控制，无法手动操作'); 
+    selectedUnitId=id; 
+    showSelected(u); 
+    return; 
+  }
+  if(u.side===currentSide && u.status.stunned) appendLog(`${u.name} 眩晕中，无法行动`);
+  selectedUnitId=id; 
+  showSelected(u);
 }
 
 function onCellClick(r,c){
-  appendLog(`Cell clicked: ${r},${c}`);
+  if(interactionLocked) return;
+  if(_skillSelection) return;
+  if(!selectedUnitId) {
+    if(godsWillArmed){ appendLog("GOD'S WILL：请直接点击单位，而非空格"); }
+    return;
+  }
+  const sel=units[selectedUnitId]; 
+  if(!sel || sel.hp<=0) return;
+
+  if(sel.side==='enemy' && ENEMY_IS_AI_CONTROLLED){ appendLog('敌方单位由 AI 控制'); return; }
+  if(sel.side!==currentSide){ appendLog('不是该单位的回合'); return; }
+  if(sel.status.stunned){ appendLog(`${sel.name} 眩晕中，无法行动`); return; }
+  if(!canUnitMove(sel)){ appendLog(`${sel.name} 处于姿态中，本回合不能移动`); return; }
+
+  const key=`${r},${c}`; 
+  if(!highlighted.has(key)) return;
+  if(playerSteps<=0 && sel.side==='player'){ appendLog('剩余步数不足'); return; }
+  const occ=getUnitAt(r,c); 
+  if(occ){ appendLog('格子被占用'); return; }
+
+  if(sel.size===2){ 
+    if(!canPlace2x2(sel, r, c)){ appendLog('该位置无法容纳 2x2 单位'); return; } 
+  }
+
+  sel.facing = (c>sel.c)?'right':(c<sel.c?'left':sel.facing);
+  sel.r=r; sel.c=c;
+  if(sel.side==='player') playerSteps=Math.max(0, playerSteps-1); 
+  else enemySteps=Math.max(0, enemySteps-1);
+  appendLog(`${sel.name} 移动到 (${r},${c})`);
+  if(sel.side!=='player') cameraFocusOnCell(r,c);
+  pulseCell(r,c);
+  
+  clearHighlights(); 
+  renderAll(); 
+  showSelected(sel);
+  setTimeout(()=>{ checkEndOfTurn(); }, 160);
 }
 
 function showGodsWillMenuAtUnit(u){
-  appendLog(`GOD'S WILL menu stub for ${u.name}`);
+  if(!battleAreaEl || !u || u.hp<=0){ 
+    appendLog("GOD'S WILL：目标无效或已倒下"); 
+    disarmGodsWill(); 
+    return; 
+  }
+  if(godsWillMenuEl){ godsWillMenuEl.remove(); godsWillMenuEl=null; }
+  
+  const p = getCellCenter(u.r, u.c);
+  const areaRect = battleAreaEl.getBoundingClientRect();
+  godsWillMenuEl = document.createElement('div');
+  godsWillMenuEl.className = 'gods-menu';
+  godsWillMenuEl.style.left = `${Math.max(8, p.x + areaRect.left + 8)}px`;
+  godsWillMenuEl.style.top  = `${Math.max(8, p.y + areaRect.top  - 8)}px`;
+  godsWillMenuEl.innerHTML = `
+    <div class="title">GOD'S WILL → ${u.name}</div>
+    <div class="row">
+      <button class="kill">杀死</button>
+      <button class="onehp">留 1 HP</button>
+      <button class="cancel">取消</button>
+    </div>
+  `;
+  
+  godsWillMenuEl.querySelector('.kill').onclick = (e)=>{
+    e.stopPropagation();
+    const before = u.hp;
+    u.hp = 0;
+    appendLog(`GOD'S WILL：${u.name} 被直接抹除（-${before} HP）`);
+    cameraShake(); 
+    showHitFX(u.r,u.c); 
+    showDamageFloat(u.r,u.c,before,0);
+    renderAll();
+    disarmGodsWill();
+  };
+  
+  godsWillMenuEl.querySelector('.onehp').onclick = (e)=>{
+    e.stopPropagation();
+    if(u.hp>1){
+      const delta = u.hp - 1;
+      u.hp = 1;
+      appendLog(`GOD'S WILL：${u.name} 被压到 1 HP（-${delta} HP）`);
+      cameraShake(); 
+      showHitFX(u.r,u.c); 
+      showDamageFloat(u.r,u.c,delta,0);
+    } else {
+      appendLog(`GOD'S WILL：${u.name} 已是 1 HP`);
+    }
+    renderAll();
+    disarmGodsWill();
+  };
+  
+  godsWillMenuEl.querySelector('.cancel').onclick = (e)=>{ 
+    e.stopPropagation(); 
+    disarmGodsWill(); 
+  };
+  
+  document.body.appendChild(godsWillMenuEl);
+}
+
+function disarmGodsWill(){
+  godsWillArmed = false;
+  if(godsWillBtn) godsWillBtn.classList.remove('armed');
+  if(godsWillMenuEl){ godsWillMenuEl.remove(); godsWillMenuEl = null; }
+  appendLog("GOD'S WILL：退出选取模式");
+}
+
+function checkEndOfTurn(){
+  if(currentSide==='player' && playerSteps<=0){
+    appendLog('玩家步数耗尽，轮到敌方');
+    currentSide='enemy';
+    enemySteps=computeBaseSteps();
+    renderAll();
+    setTimeout(()=>{ 
+      appendLog('敌方回合（AI未完全实现）');
+      setTimeout(()=>{ finishEnemyTurn(); }, 1000);
+    }, 200);
+    return;
+  }
+  if(currentSide==='enemy' && enemySteps<=0){
+    appendLog('敌方步数耗尽，轮到玩家');
+    finishEnemyTurn();
+    return;
+  }
+}
+
+function finishEnemyTurn(){
+  currentSide='player';
+  playerSteps=computeBaseSteps();
+  roundsPassed++;
+  appendLog(`=== 回合 ${roundsPassed} 开始 ===`);
+  renderAll();
 }
 
 function refreshLargeOverlays(){
@@ -2324,8 +2517,14 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   const endTurnBtn=document.getElementById('endTurnBtn');
   if(endTurnBtn) endTurnBtn.addEventListener('click', ()=>{ 
-    if(interactionLocked) return; 
-    appendLog('回合结束（部分功能未实现）');
+    if(interactionLocked) return;
+    if(currentSide !== 'player'){ 
+      appendLog('不是玩家回合'); 
+      return; 
+    }
+    appendLog('玩家主动结束回合');
+    playerSteps = 0;
+    checkEndOfTurn();
   });
 
   let _resizeTimer=null;
