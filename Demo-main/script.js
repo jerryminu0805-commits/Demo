@@ -3038,23 +3038,24 @@ async function handleSkillConfirmCell(u, sk, aimCell){
 
   const targetUnit = getUnitAt(aimCell.r, aimCell.c);
   
-  // Lock interactions for async multi-stage attacks
-  const isAsyncSkill = sk.execFn && sk.execFn.constructor.name === 'AsyncFunction';
-  if(isAsyncSkill){
-    setInteractionLocked(true);
-  }
-  
   try{
-    if(sk.meta && sk.meta.moveSkill) await sk.execFn(u, {moveTo: aimCell});
-    else if(sk.meta && sk.meta.cellTargeting) await sk.execFn(u, aimCell);
-    else if(sk.estimate && sk.estimate.aoe) await sk.execFn(u, {dir:aimDir});
-    else if(targetUnit) await sk.execFn(u, targetUnit);
-    else await sk.execFn(u, {r:aimCell.r,c:aimCell.c,dir:aimDir});
-  }catch(e){ console.error('技能执行错误',e); appendLog(`[错误] 技能执行失败：${sk.name} - ${e.message}`); }
-  
-  // Unlock interactions after async skill completes
-  if(isAsyncSkill){
-    setInteractionLocked(false);
+    let result;
+    if(sk.meta && sk.meta.moveSkill) result = sk.execFn(u, {moveTo: aimCell});
+    else if(sk.meta && sk.meta.cellTargeting) result = sk.execFn(u, aimCell);
+    else if(sk.estimate && sk.estimate.aoe) result = sk.execFn(u, {dir:aimDir});
+    else if(targetUnit) result = sk.execFn(u, targetUnit);
+    else result = sk.execFn(u, {r:aimCell.r,c:aimCell.c,dir:aimDir});
+    
+    // Lock interactions for async multi-stage attacks
+    if(result && typeof result.then === 'function'){
+      setInteractionLocked(true);
+      await result;
+      setInteractionLocked(false);
+    }
+  }catch(e){ 
+    setInteractionLocked(false); // Ensure unlock on error
+    console.error('技能执行错误',e); 
+    appendLog(`[错误] 技能执行失败：${sk.name} - ${e.message}`); 
   }
 
   consumeCardFromHand(u, sk);
