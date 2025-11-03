@@ -384,9 +384,9 @@ function injectFXStyles(){
                       animation: fx-attack-flash 420ms ease-out forwards; }
   .fx-attack.true-damage .flash { background: radial-gradient(circle, rgba(245,235,255,0.95) 0%, rgba(166,93,255,0.7) 55%, rgba(116,55,255,0) 100%); }
   .fx-attack .slash { position: absolute; left: 50%; top: 50%; width: 22px; height: 120%; border-radius: 999px;
-                      background: linear-gradient(180deg, rgba(255,255,白,0) 0%, rgba(255,255,白,0.9) 35%, rgba(255,128,17,0.9) 68%, rgba(255,255,白,0) 100%);
+                      background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.9) 35%, rgba(255,128,17,0.9) 68%, rgba(255,255,255,0) 100%);
                       opacity: 0; transform-origin: 50% 100%; }
-  .fx-attack.true-damage .slash { background: linear-gradient(180deg, rgba(255,255,白,0) 0%, rgba(255,255,白,0.92) 35%, rgba(145,102,255,0.94) 68%, rgba(255,255,白,0) 100%); }
+  .fx-attack.true-damage .slash { background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.92) 35%, rgba(145,102,255,0.94) 68%, rgba(255,255,255,0) 100%); }
   .fx-attack .slash.main { animation: fx-attack-slash 420ms ease-out forwards; }
   .fx-attack .slash.reverse { animation: fx-attack-slash-rev 420ms ease-out forwards; }
   .fx-attack .ring { position: absolute; left: 50%; top: 50%; width: 56%; height: 56%; border-radius: 50%; border: 3px solid rgba(255,198,73,0.95);
@@ -394,7 +394,7 @@ function injectFXStyles(){
                      animation: fx-attack-ring 520ms ease-out forwards; }
   .fx-attack.true-damage .ring { border-color: rgba(155,110,255,0.95); box-shadow: 0 0 26px rgba(155,110,255,0.55); }
   .fx-attack .spark { position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; border-radius: 50%;
-                      background: radial-gradient(circle, rgba(255,255,白,0.95) 0%, rgba(255,255,白,0) 65%);
+                      background: radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0) 65%);
                       opacity: 0; transform-origin: 0 0; --spark-angle: 0deg;
                       animation: fx-attack-spark 480ms ease-out forwards; }
   .fx-attack.true-damage .spark { background: radial-gradient(circle, rgba(245,235,255,0.95) 0%, rgba(166,93,255,0) 65%); }
@@ -402,25 +402,25 @@ function injectFXStyles(){
   .fx-attack .spark.right { --spark-angle: 140deg; }
   .skill-fx { position: absolute; transform: translate(-50%, -50%); pointer-events: none; mix-blend-mode: screen; opacity: 0;
               filter: drop-shadow(0 12px 26px rgba(0,0,0,0.55)); animation: skill-fx-fade 680ms ease-out forwards; }
-  .skill-fx .glyph { font-weight: 800; font-size: 26px; letter-spacing: 1px; color: var(--skill-outline, rgba(255,255,白,0.85));
-                     text-shadow: 0 0 12px rgba(255,255,白,0.35); }
+  .skill-fx .glyph { font-weight: 800; font-size: 26px; letter-spacing: 1px; color: var(--skill-outline, rgba(255,255,255,0.85));
+                     text-shadow: 0 0 12px rgba(255,255,255,0.35); }
   .skill-fx.slash { width: 160px; height: 160px; }
   .skill-fx.slash .flash { position: absolute; left: 50%; top: 50%; width: 62%; height: 62%; border-radius: 50%; opacity: 0;
-                            background: radial-gradient(circle, var(--skill-secondary, rgba(255,255,白,0.8)) 0%, rgba(255,255,白,0) 70%);
+                            background: radial-gradient(circle, var(--skill-secondary, rgba(255,255,255,0.8)) 0%, rgba(255,255,255,0) 70%);
                             transform: translate(-50%, -50%) scale(0.4); animation: skill-slash-flash 420ms ease-out forwards; }
   .skill-fx.slash .ring { position: absolute; left: 50%; top: 50%; width: 56%; height: 56%; border-radius: 50%;
-                          border: 3px solid var(--skill-secondary, rgba(255,255,白,0.65)); opacity: 0;
+                          border: 3px solid var(--skill-secondary, rgba(255,255,255,0.65)); opacity: 0;
                           transform: translate(-50%, -50%) scale(0.35);
-                          box-shadow: 0 0 18px var(--skill-secondary, rgba(255,255,白,0.35)); animation: skill-slash-ring 520ms ease-out forwards; }
+                          box-shadow: 0 0 18px var(--skill-secondary, rgba(255,255,255,0.35)); animation: skill-slash-ring 520ms ease-out forwards; }
   .skill-fx.slash .sparks { position: absolute; inset: 0; }
   .skill-fx.slash .spark { position:absolute; left:50%; top:50%; width:16px; height:16px; border-radius:50%; opacity:0;
-                           background: radial-gradient(circle, rgba(255,255,白,0.95) 0%, rgba(255,255,白,0) 70%);
+                           background: radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0) 70%);
                            transform-origin:0 0; animation: skill-slash-spark 480ms ease-out forwards; }
   .skill-fx.slash .spark.left { --spark-angle: -50deg; }
   .skill-fx.slash .spark.right { --spark-angle: 140deg; }
   .skill-fx.slash .strokes { position:absolute; inset:0; }
   .skill-fx.slash .stroke { position:absolute; left:50%; top:50%; width:26px; height:120%; border-radius:999px; opacity:0;
-                            transform-origin:50% 100%; background: linear-gradient(180deg, rgba(255,255,白,0), var(--skill-primary, rgba(255,255,白,0.92)) 45%, rgba(255,255,白,0));
+                            transform-origin:50% 100%; background: linear-gradient(180deg, rgba(255,255,255,0), var(--skill-primary, rgba(255,255,255,0.92)) 45%, rgba(255,255,255,0));
                             animation: skill-slash-stroke 520ms ease-out forwards; }
   .skill-fx.slash .stroke[data-index="0"] { --stroke-offset: -18deg; --stroke-shift: -6deg; }
   .skill-fx.slash .stroke[data-index="1"] { --stroke-offset: 0deg; --stroke-shift: 0deg; animation-delay: 40ms; }
@@ -428,30 +428,30 @@ function injectFXStyles(){
   .skill-fx.claw { width: 160px; height: 160px; }
   .skill-fx.claw .burst { position: absolute; left:50%; top:50%; width:68%; height:68%; border-radius:50%; opacity:0.8;
                            transform: translate(-50%,-50%) scale(0.4);
-                           background: radial-gradient(circle, var(--skill-secondary, rgba(255,255,白,0.7)) 0%, rgba(255,255,白,0) 70%);
+                           background: radial-gradient(circle, var(--skill-secondary, rgba(255,255,255,0.7)) 0%, rgba(255,255,255,0) 70%);
                            animation: skill-claw-burst 520ms ease-out forwards; }
-  .skill-fx.claw[data-variant="mecha"] .burst { box-shadow: 0 0 22px var(--skill-primary, rgba(255,255,白,0.6));
-                                                 background: radial-gradient(circle, rgba(255,255,白,0.65) 0%, var(--skill-secondary, rgba(255,255,白,0.0)) 70%); }
+  .skill-fx.claw[data-variant="mecha"] .burst { box-shadow: 0 0 22px var(--skill-primary, rgba(255,255,255,0.6));
+                                                 background: radial-gradient(circle, rgba(255,255,255,0.65) 0%, var(--skill-secondary, rgba(255,255,255,0.0)) 70%); }
   .skill-fx.claw .scratch { position:absolute; left:50%; top:50%; width:12px; height:120%; opacity:0; transform-origin:50% 0;
                              animation: skill-claw-scratch 560ms ease-out forwards; }
   .skill-fx.claw .scratch span { display:block; width:100%; height:100%; border-radius:999px;
-                                 background: linear-gradient(180deg, rgba(255,255,白,0.05), var(--skill-primary,#ffffff) 55%, rgba(255,255,白,0));
-                                 box-shadow: 0 0 16px var(--skill-primary, rgba(255,255,白,0.35)); }
+                                 background: linear-gradient(180deg, rgba(255,255,255,0.05), var(--skill-primary,#ffffff) 55%, rgba(255,255,255,0));
+                                 box-shadow: 0 0 16px var(--skill-primary, rgba(255,255,255,0.35)); }
   .skill-fx.claw .shard { position:absolute; left:50%; top:50%; width:18px; height:38px; border-radius:999px; opacity:0;
-                          transform-origin:50% 90%; background: linear-gradient(180deg, rgba(255,255,白,0.3), var(--skill-primary, rgba(255,255,白,0.9)) 60%, rgba(255,255,白,0));
-                          filter: drop-shadow(0 0 10px rgba(255,255,白,0.45)); animation: skill-claw-shard 520ms ease-out forwards; }
+                          transform-origin:50% 90%; background: linear-gradient(180deg, rgba(255,255,255,0.3), var(--skill-primary, rgba(255,255,255,0.9)) 60%, rgba(255,255,255,0));
+                          filter: drop-shadow(0 0 10px rgba(255,255,255,0.45)); animation: skill-claw-shard 520ms ease-out forwards; }
   .skill-fx.claw[data-variant="mecha"] .servo-ring { position:absolute; left:50%; top:50%; width:130%; height:130%; border-radius:50%;
-                                                       border:3px solid var(--skill-primary, rgba(255,255,白,0.85)); opacity:0;
+                                                       border:3px solid var(--skill-primary, rgba(255,255,255,0.85)); opacity:0;
                                                        transform: translate(-50%, -50%) scale(0.4);
-                                                       box-shadow: 0 0 18px var(--skill-secondary, rgba(255,255,白,0.35));
+                                                       box-shadow: 0 0 18px var(--skill-secondary, rgba(255,255,255,0.35));
                                                        animation: skill-claw-servo 620ms ease-out forwards; }
   .skill-fx.claw[data-variant="mecha"] .servo-flare { position:absolute; left:50%; top:50%; width:84%; height:84%; border-radius:50%; opacity:0;
                                                         transform: translate(-50%, -50%) scale(0.5);
-                                                        background: radial-gradient(circle, rgba(255,255,白,0.7) 0%, rgba(255,255,白,0) 70%);
+                                                        background: radial-gradient(circle, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0) 70%);
                                                         animation: skill-claw-servo-flare 600ms ease-out forwards; }
   .skill-fx.claw[data-variant="mecha"] .mecha-sparks { position:absolute; inset:0; }
   .skill-fx.claw[data-variant="mecha"] .mecha-sparks .spark { position:absolute; left:50%; top:50%; width:18px; height:18px; border-radius:50%;
-                                                                background: radial-gradient(circle, rgba(255,255,白,0.95) 0%, rgba(255,255,白,0) 65%);
+                                                                background: radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0) 65%);
                                                                 opacity:0; transform-origin:0 0; animation: skill-claw-mecha-spark 520ms ease-out forwards; }
   .skill-fx.claw .scratch[data-index="0"] { --scratch-shift:-28px; }
   .skill-fx.claw .scratch[data-index="1"] { --scratch-shift:-12px; animation-delay: 30ms; }
@@ -461,75 +461,75 @@ function injectFXStyles(){
   .skill-fx.attack-swing { width: 150px; height: 150px; }
   .skill-fx.attack-swing .glow { position:absolute; left:50%; top:50%; width:82%; height:82%; border-radius:50%; opacity:0;
                                  transform: translate(-50%, -50%) scale(0.3);
-                                 background: radial-gradient(circle, var(--skill-secondary, rgba(255,255,白,0.6)) 0%, rgba(255,255,白,0) 70%);
+                                 background: radial-gradient(circle, var(--skill-secondary, rgba(255,255,255,0.6)) 0%, rgba(255,255,255,0) 70%);
                                  animation: attack-swing-glow 420ms ease-out forwards; }
   .skill-fx.attack-swing .arc { position:absolute; left:50%; top:50%; width:18px; height:94%; border-radius:999px; opacity:0;
                                 transform-origin:50% 88%;
-                                background: linear-gradient(180deg, rgba(255,255,白,0.0), var(--skill-primary, rgba(255,255,白,0.95)) 52%, rgba(255,255,白,0));
-                                box-shadow: 0 0 18px var(--skill-primary, rgba(255,255,白,0.4));
+                                background: linear-gradient(180deg, rgba(255,255,255,0.0), var(--skill-primary, rgba(255,255,255,0.95)) 52%, rgba(255,255,255,0));
+                                box-shadow: 0 0 18px var(--skill-primary, rgba(255,255,255,0.4));
                                 animation: attack-swing-arc 420ms ease-out forwards; }
   .skill-fx.attack-swing[data-variant="claw"] .arc { height: 100%; width: 16px; transform-origin:50% 90%; }
-  .skill-fx.attack-swing[data-variant="mecha"] .arc { box-shadow: 0 0 22px var(--skill-primary, rgba(255,255,白,0.55)); }
+  .skill-fx.attack-swing[data-variant="mecha"] .arc { box-shadow: 0 0 22px var(--skill-primary, rgba(255,255,255,0.55)); }
   .skill-fx.attack-swing[data-variant="wide"] .arc { height: 110%; }
   .skill-fx.attack-swing .arc { transform: translate(-50%, -50%) rotate(calc(var(--attack-angle, 0deg) + var(--arc-angle-offset, 0deg))); }
   .skill-fx.attack-muzzle { width: calc(var(--attack-length, 90px) + 50px); height: 86px;
                             transform: translate(-50%, -50%) rotate(var(--attack-angle, 0deg)); }
   .skill-fx.attack-muzzle .flash { position:absolute; left:24%; top:50%; width:48px; height:48px; border-radius:50%; opacity:0.9;
                                    transform: translate(-50%, -50%) scale(0.4);
-                                   background: radial-gradient(circle, var(--skill-primary, rgba(255,255,白,0.85)) 0%, rgba(255,255,白,0) 72%);
-                                   box-shadow: 0 0 24px var(--skill-primary, rgba(255,255,白,0.55));
+                                   background: radial-gradient(circle, var(--skill-primary, rgba(255,255,255,0.85)) 0%, rgba(255,255,255,0) 72%);
+                                   box-shadow: 0 0 24px var(--skill-primary, rgba(255,255,255,0.55));
                                    animation: attack-muzzle-flash 360ms ease-out forwards; }
   .skill-fx.attack-muzzle .trail { position:absolute; left:50%; top:50%; height:12px; width: var(--attack-length, 90px);
                                    border-radius: 999px; opacity:0;
                                    transform: translate(-10%, -50%);
-                                   background: linear-gradient(90deg, rgba(255,255,白,0.0) 0%, var(--skill-primary, rgba(255,255,白,0.85)) 45%, rgba(255,255,白,0) 100%);
-                                   box-shadow: 0 0 18px var(--skill-secondary, rgba(255,255,白,0.4));
+                                   background: linear-gradient(90deg, rgba(255,255,255,0.0) 0%, var(--skill-primary, rgba(255,255,255,0.85)) 45%, rgba(255,255,255,0) 100%);
+                                   box-shadow: 0 0 18px var(--skill-secondary, rgba(255,255,255,0.4));
                                    animation: attack-muzzle-trail 420ms ease-out forwards; }
   .skill-fx.attack-aura { width: 150px; height: 150px; }
   .skill-fx.attack-aura .ring { position:absolute; left:50%; top:50%; width:86%; height:86%; border-radius:50%; opacity:0;
                                  transform: translate(-50%, -50%) scale(0.35);
-                                 border:2px solid var(--skill-primary, rgba(255,255,白,0.8));
-                                 box-shadow: 0 0 18px var(--skill-secondary, rgba(255,255,白,0.35));
+                                 border:2px solid var(--skill-primary, rgba(255,255,255,0.8));
+                                 box-shadow: 0 0 18px var(--skill-secondary, rgba(255,255,255,0.35));
                                  animation: attack-aura-ring 520ms ease-out forwards; }
   .skill-fx.attack-aura .pulse { position:absolute; left:50%; top:50%; width:64%; height:64%; border-radius:50%; opacity:0;
                                  transform: translate(-50%, -50%) scale(0.5);
-                                 background: radial-gradient(circle, var(--skill-secondary, rgba(255,255,白,0.55)) 0%, rgba(255,255,白,0) 72%);
+                                 background: radial-gradient(circle, var(--skill-secondary, rgba(255,255,255,0.55)) 0%, rgba(255,255,255,0) 72%);
                                  animation: attack-aura-pulse 520ms ease-out forwards; }
   .skill-fx.beam { width: calc(var(--skill-length, 140px) + 60px); height: 80px; }
   .skill-fx.beam .muzzle { position:absolute; left:50%; top:50%; width:52px; height:52px; border-radius:50%; opacity:0.8;
                            transform: translate(-50%,-50%) scale(0.35);
-                           background: radial-gradient(circle, var(--skill-secondary, rgba(255,255,白,0.85)) 0%, rgba(255,255,白,0) 70%);
+                           background: radial-gradient(circle, var(--skill-secondary, rgba(255,255,255,0.85)) 0%, rgba(255,255,255,0) 70%);
                            animation: skill-beam-muzzle 360ms ease-out forwards; }
   .skill-fx.beam .trail { position:absolute; left:50%; top:50%; height:12px; width: var(--skill-length, 140px);
-                          background: linear-gradient(90deg, var(--skill-secondary, rgba(255,255,白,0.45)) 0%, var(--skill-primary, rgba(255,255,白,0.95)) 70%, rgba(255,255,白,0) 100%);
+                          background: linear-gradient(90deg, var(--skill-secondary, rgba(255,255,255,0.45)) 0%, var(--skill-primary, rgba(255,255,255,0.95)) 70%, rgba(255,255,255,0) 100%);
                           border-radius: 999px; opacity:0; transform-origin:0 50%; animation: skill-beam-trail 360ms ease-out forwards; }
   .skill-fx.beam .flare { position:absolute; right:8%; top:50%; width:42px; height:42px; border-radius:50%; opacity:0;
-                          background: radial-gradient(circle, rgba(255,255,白,0.85) 0%, transparent 70%);
+                          background: radial-gradient(circle, rgba(255,255,255,0.85) 0%, transparent 70%);
                           animation: skill-beam-flare 380ms ease-out forwards; }
   .skill-fx.burst { width: 200px; height: 200px; }
   .skill-fx.burst .ring { position:absolute; left:50%; top:50%; width:70%; height:70%; border-radius:50%; border:3px solid var(--skill-primary,#ffffff);
                           transform:translate(-50%,-50%) scale(0.4); opacity:0; animation: skill-burst-ring 620ms ease-out forwards; }
   .skill-fx.burst .wave { position:absolute; left:50%; top:50%; width:96%; height:96%; border-radius:50%; opacity:0;
-                          background: radial-gradient(circle, var(--skill-secondary, rgba(255,255,白,0.6)) 0%, rgba(255,255,白,0) 80%);
+                          background: radial-gradient(circle, var(--skill-secondary, rgba(255,255,255,0.6)) 0%, rgba(255,255,255,0) 80%);
                           transform:translate(-50%,-50%) scale(0.3); animation: skill-burst-wave 660ms ease-out forwards; }
   .skill-fx.burst .core { position:absolute; left:50%; top:50%; width:38%; height:38%; border-radius:50%; opacity:0.9;
-                          transform:translate(-50%,-50%); background: radial-gradient(circle, var(--skill-primary, rgba(255,255,白,0.85)) 80%);
+                          transform:translate(-50%,-50%); background: radial-gradient(circle, var(--skill-primary, rgba(255,255,255,0.85)) 80%);
                           animation: skill-burst-core 420ms ease-out forwards; }
-  .skill-fx.aura { width: 170px; height: 170px; filter: drop-shadow(0 12px 26px rgba(255,255,白,0.35)); }
+  .skill-fx.aura { width: 170px; height: 170px; filter: drop-shadow(0 12px 26px rgba(255,255,255,0.35)); }
   .skill-fx.aura .halo { position:absolute; left:50%; top:50%; width:86%; height:86%; border-radius:50%; opacity:0;
                           transform:translate(-50%, -50%) scale(0.6);
-                          background: radial-gradient(circle, var(--skill-secondary, rgba(255,255,白,0.75)) 0%, rgba(255,255,白,0) 75%);
+                          background: radial-gradient(circle, var(--skill-secondary, rgba(255,255,255,0.75)) 0%, rgba(255,255,255,0) 75%);
                           animation: skill-aura-halo 760ms ease-out forwards; }
   .skill-fx.aura .glyph { position:absolute; left:50%; top:50%; transform:translate(-50%, -50%); opacity:0;
                           animation: skill-aura-glyph 720ms ease-out forwards; }
-  .skill-fx.aura .particles { position:absolute; inset:0; background: radial-gradient(circle, var(--skill-primary, rgba(255,255,白,0.35)) 0%, rgba(255,255,白,0) 70%);
+  .skill-fx.aura .particles { position:absolute; inset:0; background: radial-gradient(circle, var(--skill-primary, rgba(255,255,255,0.35)) 0%, rgba(255,255,255,0) 70%);
                               border-radius:50%; opacity:0.6; filter: blur(12px); animation: skill-aura-pulse 780ms ease-out forwards; }
   .skill-fx.lightning { width: 180px; height: 180px; }
   .skill-fx.lightning .glow { position:absolute; left:50%; top:50%; width:80%; height:80%; border-radius:50%; opacity:0.8;
-                               transform:translate(-50%,-50%) scale(0.4); background: radial-gradient(circle, var(--skill-secondary, rgba(255,255,白,0.85)) 0%, rgba(255,255,白,0) 75%);
+                               transform:translate(-50%,-50%) scale(0.4); background: radial-gradient(circle, var(--skill-secondary, rgba(255,255,255,0.85)) 0%, rgba(255,255,255,0) 75%);
                                animation: skill-lightning-glow 520ms ease-out forwards; }
   .skill-fx.lightning .bolt { position:absolute; left:50%; top:50%; width:6px; height:110%; opacity:0;
-                              background: linear-gradient(180deg, rgba(255,255,白,0), var(--skill-primary,#ffffff) 45%, rgba(255,255,白,0));
+                              background: linear-gradient(180deg, rgba(255,255,255,0), var(--skill-primary,#ffffff) 45%, rgba(255,255,255,0));
                               transform-origin:50% 0; animation: skill-lightning-bolt 520ms ease-out forwards; }
   .skill-fx.lightning .bolt[data-index="0"] { transform: translate(-50%, -50%) rotate(calc(var(--skill-angle,0deg) - 18deg)); }
   .skill-fx.lightning .bolt[data-index="1"] { transform: translate(-50%, -50%) rotate(calc(var(--skill-angle,0deg) + 6deg)); animation-delay: 50ms; }
@@ -541,25 +541,25 @@ function injectFXStyles(){
   .skill-fx.rune .orbit { position:absolute; left:50%; top:50%; width:90%; height:90%; border-radius:50%; border:1px dashed var(--skill-secondary,#ffffff);
                           transform:translate(-50%,-50%); opacity:0.65; animation: skill-rune-spin 900ms linear forwards; }
   .skill-fx.rune .flare { position:absolute; left:50%; top:50%; width:44%; height:44%; border-radius:50%; opacity:0;
-                          background: radial-gradient(circle, rgba(255,255,白,0.92) 0%, var(--skill-primary, rgba(255,255,白,0.82)) 80%);
+                          background: radial-gradient(circle, rgba(255,255,255,0.92) 0%, var(--skill-primary, rgba(255,255,255,0.82)) 80%);
                           transform:translate(-50%,-50%); animation: skill-rune-flare 520ms ease-out forwards; }
   .skill-fx.impact { width: 180px; height: 180px; }
   .skill-fx.impact .shock { position:absolute; left:50%; top:50%; width:70%; height:70%; border-radius:50%; opacity:0;
-                             background: radial-gradient(circle, var(--skill-primary, rgba(255,255,白,0.75)) 0%, rgba(255,255,白,0) 80%);
+                             background: radial-gradient(circle, var(--skill-primary, rgba(255,255,255,0.75)) 0%, rgba(255,255,255,0) 80%);
                              transform:translate(-50%,-50%) scale(0.45); animation: skill-impact-shock 640ms ease-out forwards; }
   .skill-fx.impact .dust { position:absolute; left:50%; top:65%; width:120%; height:40%; opacity:0.7;
-                           background: radial-gradient(circle, var(--skill-secondary, rgba(255,255,白,0.6)) 0%, rgba(255,255,白,0) 80%);
+                           background: radial-gradient(circle, var(--skill-secondary, rgba(255,255,255,0.6)) 0%, rgba(255,255,255,0) 80%);
                            transform:translate(-50%,-50%) scaleX(0.4); animation: skill-impact-dust 720ms ease-out forwards; filter: blur(6px); }
   .skill-fx.impact .cracks { position:absolute; left:50%; top:50%; width:80%; height:80%; opacity:0;
-                             background: radial-gradient(circle, rgba(255,255,白,0.75) 0%, rgba(255,255,白,0) 75%);
+                             background: radial-gradient(circle, rgba(255,255,255,0.75) 0%, rgba(255,255,255,0) 75%);
                              transform:translate(-50%,-50%) scale(0.3); mask: radial-gradient(circle, transparent 45%, #000 46%);
                              animation: skill-impact-crack 620ms ease-out forwards; }
   .skill-fx.cascade { width: 130px; height: 200px; }
   .skill-fx.cascade .column { position:absolute; left:50%; top:0; width:46px; height:100%; opacity:0.75;
-                               background: linear-gradient(180deg, var(--skill-primary, rgba(255,255,白,0.7)) 0%, rgba(255,255,白,0) 85%);
+                               background: linear-gradient(180deg, var(--skill-primary, rgba(255,255,255,0.7)) 0%, rgba(255,255,255,0) 85%);
                                transform:translateX(-50%); animation: skill-cascade-column 720ms ease-out forwards; }
   .skill-fx.cascade .drop { position:absolute; left:50%; width:14px; height:24px; border-radius:999px;
-                             background: radial-gradient(circle, rgba(255,255,白,0.9) 0%, var(--skill-secondary, rgba(255,255,白,0.65)) 70%);
+                             background: radial-gradient(circle, rgba(255,255,255,0.9) 0%, var(--skill-secondary, rgba(255,255,255,0.65)) 70%);
                              opacity:0; animation: skill-cascade-drop 680ms ease-out forwards; }
   .skill-fx.cascade .drop[data-index="0"] { top:10%; animation-delay: 20ms; }
   .skill-fx.cascade .drop[data-index="1"] { top:32%; animation-delay: 70ms; }
@@ -568,16 +568,16 @@ function injectFXStyles(){
   .skill-fx.cascade .drop[data-index="4"] { top:20%; animation-delay: 200ms; }
   .skill-fx.cascade .drop[data-index="5"] { top:44%; animation-delay: 240ms; }
   .skill-fx.spiral { width: 180px; height: 180px; }
-  .skill-fx.spiral .swirl { position:absolute; left:50%; top:50%; width:80%; height:80%; border-radius:50%; border:4px solid var(--skill-primary, rgba(255,255,白,0.7));
+  .skill-fx.spiral .swirl { position:absolute; left:50%; top:50%; width:80%; height:80%; border-radius:50%; border:4px solid var(--skill-primary, rgba(255,255,255,0.7));
                              transform:translate(-50%,-50%) scale(0.3); opacity:0; animation: skill-spiral-spin 640ms ease-out forwards; }
-  .skill-fx.spiral .swirl.two { border-color: var(--skill-secondary, rgba(255,255,白,0.7)); animation-delay: 80ms; }
+  .skill-fx.spiral .swirl.two { border-color: var(--skill-secondary, rgba(255,255,255,0.7)); animation-delay: 80ms; }
   .skill-fx.spiral .center { position:absolute; left:50%; top:50%; width:32%; height:32%; border-radius:50%; opacity:0.9;
-                              background: radial-gradient(circle, rgba(255,255,白,0.92) 0%, var(--skill-secondary, rgba(255,255,白,0.75)) 90%);
+                              background: radial-gradient(circle, rgba(255,255,255,0.92) 0%, var(--skill-secondary, rgba(255,255,255,0.75)) 90%);
                               transform:translate(-50%, -50%); animation: skill-spiral-center 540ms ease-out forwards; }
   .fx-death { position: absolute; transform: translate(-50%, -50%); pointer-events: none; overflow: visible;
               filter: drop-shadow(0 14px 28px rgba(0,0,0,0.45)); animation: fx-death-fade 900ms ease-out forwards; }
   .fx-death .piece { position: absolute; left: 0; width: 100%; height: 50%; box-sizing: border-box; border-radius: 8px;
-                     background: rgba(255,255,白,0.14); border: 1px solid rgba(255,255,白,0.28); }
+                     background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.28); }
   .fx-death.player .piece { background: rgba(91,140,255,0.18); border-color: rgba(91,140,255,0.45); }
   .fx-death.enemy  .piece { background: rgba(255,77,79,0.18); border-color: rgba(255,77,79,0.45); }
   .fx-death .piece.top { top: 0; border-bottom-left-radius: 4px; border-bottom-right-radius: 4px;
@@ -586,15 +586,15 @@ function injectFXStyles(){
                             animation: fx-death-bottom 900ms ease-out forwards; }
   .fx-death.size-2 .piece { border-radius: 12px; }
   .fx-death .crack { position: absolute; left: 50%; top: 0; width: 3px; height: 100%;
-                     background: linear-gradient(180deg, rgba(255,255,白,0.95), rgba(255,255,白,0));
+                     background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0));
                      transform: translateX(-50%) scaleY(0); mix-blend-mode: screen;
                      animation: fx-death-crack 260ms ease-out forwards, fx-death-fade 900ms ease-out forwards; }
   .fx-death .dust { position: absolute; left: 50%; top: 50%; width: 100%; height: 100%;
-                    background: radial-gradient(circle, rgba(255,255,白,0.28) 0%, rgba(255,255,白,0) 70%);
+                    background: radial-gradient(circle, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0) 70%);
                     transform: translate(-50%, -50%) scale(0.65); opacity: 0.85;
                     animation: fx-death-dust 900ms ease-out forwards; pointer-events: none; }
-  .fx-trail { width: 6px; height: 0; background: linear-gradient(90deg, rgba(255,255,白,0), rgba(255,255,白,0.85), rgba(255,255,白,0));
-              box-shadow: 0 0 8px rgba(255,255,白,0.8); transform-origin: 0 0; animation: fx-trail 220ms linear forwards; mix-blend-mode: screen; }
+  .fx-trail { width: 6px; height: 0; background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.85), rgba(255,255,255,0));
+              box-shadow: 0 0 8px rgba(255,255,255,0.8); transform-origin: 0 0; animation: fx-trail 220ms linear forwards; mix-blend-mode: screen; }
   .shake { animation: cam-shake 180ms ease-in-out 1; }
   .shake-heavy { animation: cam-shake-heavy 320ms ease-in-out 1; }
   .pulse { animation: pulse 600ms ease-out 1; }
@@ -670,7 +670,7 @@ function injectFXStyles(){
   #godsWillBtn.locked,
   #godsWillBtn:disabled {
     background: #1f1f1f;
-    color: rgba(255,255,白,0.45);
+    color: rgba(255,255,255,0.45);
     cursor: not-allowed;
     box-shadow: none;
   }
@@ -678,7 +678,7 @@ function injectFXStyles(){
   /* GOD'S WILL 菜单 */
   .gods-menu {
     position: absolute; z-index: 3002; background: rgba(20,20,30,0.95); color: #fff;
-    border: 1px solid rgba(255,255,白,0.1); border-radius: 8px; padding: 8px; min-width: 180px;
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px; min-width: 180px;
     box-shadow: 0 6px 16px rgba(0,0,0,0.35); backdrop-filter: blur(2px);
   }
   .gods-menu .title { font-size: 12px; opacity: 0.8; margin-bottom: 6px; }
@@ -1661,7 +1661,7 @@ function applyKhathiaDesignPenalty(){
 }
 function applySpDamage(targetOrId, amount, {sourceId=null, reason=null}={}){
   const u = typeof targetOrId === 'string' ? units[targetOrId] : targetOrId;
-  if(!u || !u.hp<=0 || amount<=0) return 0;
+  if(!u || u.hp<=0 || amount<=0) return 0;
   const before = u.sp;
   const floor = (typeof u.spFloor === 'number') ? u.spFloor : 0;
   u.sp = Math.max(floor, u.sp - amount);
@@ -2043,7 +2043,7 @@ function placeUnits(){
     if(u.sp < 0){
       const spFloor = (typeof u.spFloor === 'number') ? u.spFloor : 0;
       // Calculate percentage: 0 = empty (sp=0), 100 = full (sp=spFloor)
-      spPct = Math.max(0, Math.min(100, Math.abs(u.sp / spFloor * 100)));
+      spPct = (spFloor !== 0) ? Math.max(0, Math.min(100, Math.abs(u.sp / spFloor * 100))) : 0;
       spBarClass += ' sp-negative';
       spFillClass += ' sp-negative';
     } else {
@@ -2111,7 +2111,7 @@ function renderLargeUnitOverlay(u){
   if(u.sp < 0){
     const spFloor = (typeof u.spFloor === 'number') ? u.spFloor : 0;
     // Calculate percentage: 0 = empty (sp=0), 100 = full (sp=spFloor)
-    spPct = Math.max(0, Math.min(100, Math.abs(u.sp / spFloor * 100)));
+    spPct = (spFloor !== 0) ? Math.max(0, Math.min(100, Math.abs(u.sp / spFloor * 100))) : 0;
     spBarClass += ' sp-negative';
     spFillClass += ' sp-negative';
   } else {
