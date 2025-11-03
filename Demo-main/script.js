@@ -2060,6 +2060,22 @@ function adoraCheer(u, aim){
   appendLog(`${u.name} 对 ${t.name} 使用 加油哇！：赋予 1 层“鸡血”`);
   unitActed(u);
 }
+function adoraFieldMedic(u, aim){
+  const t = getUnitAt(aim.r, aim.c);
+  if(!t || t.side!==u.side){ appendLog('略懂的医术！ 目标无效'); return; }
+  const healHp = 20;
+  const healSp = 15;
+  t.hp = Math.min(t.maxHp, t.hp + healHp);
+  t.sp = Math.min(t.maxSp, t.sp + healSp);
+  syncSpBroken(t);
+  const currentStacks = (t.status && t.status.recoverStacks) ? t.status.recoverStacks : 0;
+  updateStatusStacks(t,'recoverStacks', currentStacks + 1, {label:'恢复', type:'buff'});
+  pulseCell(t.r, t.c);
+  showGainFloat(t, healHp, healSp);
+  showSkillFx('adora:略懂的医术！', {target:t});
+  appendLog(`${u.name} 对 ${t.name} 使用 略懂的医术！：恢复 ${healHp} HP 和 ${healSp} SP，并赋予 1 层"恢复"`);
+  unitActed(u);
+}
 function darioClaw(u,target){
   if(!target || target.side===u.side){ appendLog('机械爪击 目标无效'); return; }
   const dmg = calcOutgoingDamage(u,15,target,'机械爪击');
@@ -2526,19 +2542,19 @@ function buildSkillFactoriesForUnit(u){
     F.push(
       { key:'血肉之刃', prob:0.70, cond:()=>true, make:()=> skill('血肉之刃',1,'green','前方2x1：15HP+10HP，多段叠怨念',
         (uu,aimDir)=> { const dir=aimDir||uu.facing; return forwardRect2x2(uu,dir,2,1).map(c=>({...c,dir})); },
-        (uu,desc)=> { const dir = desc && desc.dir ? desc.dir : uu.facing; khathia_FleshBlade(uu, dir); },
+        async (uu,desc)=> { const dir = desc && desc.dir ? desc.dir : uu.facing; await khathia_FleshBlade(uu, dir); },
         {},
         {castMs:1100}
       )},
       { key:'怨念之爪', prob:0.70, cond:()=>true, make:()=> skill('怨念之爪',1,'green','前方2x2：10HP+15SP并叠怨念',
         (uu,aimDir)=> { const dir=aimDir||uu.facing; return forwardRect2x2(uu,dir,2,2).map(c=>({...c,dir})); },
-        (uu,desc)=> { const dir = desc && desc.dir ? desc.dir : uu.facing; khathia_GrudgeClaw(uu, dir); },
+        async (uu,desc)=> { const dir = desc && desc.dir ? desc.dir : uu.facing; await khathia_GrudgeClaw(uu, dir); },
         {},
         {castMs:1100}
       )},
       { key:'蛮横横扫', prob:0.60, cond:()=>true, make:()=> skill('蛮横横扫',2,'red','前方4x2：20HP并附恐惧',
         (uu,aimDir)=> { const dir=aimDir||uu.facing; return forwardRect2x2(uu,dir,4,2).map(c=>({...c,dir})); },
-        (uu,desc)=> { const dir = desc && desc.dir ? desc.dir : uu.facing; khathia_BrutalSweep(uu, dir); },
+        async (uu,desc)=> { const dir = desc && desc.dir ? desc.dir : uu.facing; await khathia_BrutalSweep(uu, dir); },
         {aoe:true},
         {castMs:1400}
       )},
@@ -2554,19 +2570,19 @@ function buildSkillFactoriesForUnit(u){
           else if(dir === 'right'){ maxDepth = COLS - (uu.c + 1); }
           return forwardRect2x2(uu,dir,2,maxDepth).map(c=>({...c,dir})); 
         },
-        (uu,desc)=> { const dir = desc && desc.dir ? desc.dir : uu.facing; khathia_Overwork(uu, dir); },
+        async (uu,desc)=> { const dir = desc && desc.dir ? desc.dir : uu.facing; await khathia_Overwork(uu, dir); },
         {aoe:true},
         {castMs:1900}
       )},
       { key:'痛苦咆哮', prob:0.35, cond:()=>true, make:()=> skill('痛苦咆哮',2,'red','恢复自身SP并清算所有怨念目标',
         (uu)=>[{r:uu.r,c:uu.c,dir:uu.facing}],
-        (uu)=> khathia_AgonyRoar(uu),
+        async (uu)=> await khathia_AgonyRoar(uu),
         {},
         {castMs:1500}
       )},
       { key:'过多疲劳患者最终的挣扎', prob:0.30, cond:()=>true, make:()=> skill('过多疲劳患者最终的挣扎',3,'red','以自身为中心大范围：50HP+70SP',
         (uu)=> range_square_n(uu,5).map(c=>({...c,dir:uu.facing})),
-        (uu)=> khathia_FinalStruggle(uu),
+        async (uu)=> await khathia_FinalStruggle(uu),
         {aoe:true},
         {castMs:2200}
       )}
@@ -2994,7 +3010,7 @@ function discardSkill(u, sk){
   appendLog(`${u.name} 弃置了技能：${sk.name}`);
   renderAll(); showSelected(u);
 }
-function handleSkillConfirmCell(u, sk, aimCell){
+async function handleSkillConfirmCell(u, sk, aimCell){
   if(interactionLocked || !u || u.hp<=0) return;
   if(!_skillSelection) return;
 
@@ -3022,13 +3038,26 @@ function handleSkillConfirmCell(u, sk, aimCell){
   }
 
   const targetUnit = getUnitAt(aimCell.r, aimCell.c);
+  
   try{
-    if(sk.meta && sk.meta.moveSkill) sk.execFn(u, {moveTo: aimCell});
-    else if(sk.meta && sk.meta.cellTargeting) sk.execFn(u, aimCell);
-    else if(sk.estimate && sk.estimate.aoe) sk.execFn(u, {dir:aimDir});
-    else if(targetUnit) sk.execFn(u, targetUnit);
-    else sk.execFn(u, {r:aimCell.r,c:aimCell.c,dir:aimDir});
-  }catch(e){ console.error('技能执行错误',e); appendLog(`[错误] 技能执行失败：${sk.name} - ${e.message}`); }
+    let result;
+    if(sk.meta && sk.meta.moveSkill) result = sk.execFn(u, {moveTo: aimCell});
+    else if(sk.meta && sk.meta.cellTargeting) result = sk.execFn(u, aimCell);
+    else if(sk.estimate && sk.estimate.aoe) result = sk.execFn(u, {dir:aimDir});
+    else if(targetUnit) result = sk.execFn(u, targetUnit);
+    else result = sk.execFn(u, {r:aimCell.r,c:aimCell.c,dir:aimDir});
+    
+    // Lock interactions for async multi-stage attacks
+    if(result instanceof Promise){
+      setInteractionLocked(true);
+      await result;
+      setInteractionLocked(false);
+    }
+  }catch(e){ 
+    setInteractionLocked(false); // Ensure unlock on error
+    console.error('技能执行错误',e); 
+    appendLog(`[错误] 技能执行失败：${sk.name} - ${e.message}`); 
+  }
 
   consumeCardFromHand(u, sk);
   clearSkillAiming();
