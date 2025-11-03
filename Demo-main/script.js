@@ -133,7 +133,7 @@ function createUnit(id, name, side, level, r, c, maxHp, maxSp, restoreOnZeroPct,
     id, name, side, level, r, c,
     size: extra.size || 1,
     hp: maxHp, maxHp,
-    sp: maxSp, maxSp,
+    sp: (typeof extra.initialSp === 'number') ? extra.initialSp : maxSp, maxSp,
     restoreOnZeroPct, spZeroHpPenalty,
     facing: side==='player' ? 'right' : 'left',
     status: {
@@ -192,6 +192,7 @@ units['khathia'] = createUnit('khathia','Khathia','enemy',35, 4, 19, 700, 100, 0
   spFloor:-100,
   disableSpCrash:true,
   maxMovePerTurn:3,
+  initialSp:0,
 });
 
 // —— 范围/工具 ——
@@ -2652,6 +2653,19 @@ function refreshLargeOverlays(){
     }
   }
 }
+function getSpBarDisplay(u){
+  // For units with negative SP (like Khathia with spFloor=-100):
+  // SP from 0 to -100 displays as purple bar filling from 0% to 100%
+  if(u.sp < 0 && u.spFloor < 0){
+    const spPct = Math.max(0, Math.min(100, Math.abs(u.sp / u.spFloor) * 100));
+    const color = '#9254de'; // Purple color for negative SP
+    return { spPct, color };
+  }
+  // Normal positive SP display
+  const spPct = Math.max(0, Math.min(100, (u.maxSp ? (u.sp/u.maxSp*100) : 0)));
+  const color = '#40a9ff'; // Blue color for positive SP
+  return { spPct, color };
+}
 function placeUnits(){
   if(!battleAreaEl) return;
   document.querySelectorAll('.cell .unit').forEach(n=>n.remove());
@@ -2689,11 +2703,11 @@ function placeUnits(){
     });
 
     const hpPct = Math.max(0, Math.min(100, (u.hp/u.maxHp*100)||0));
-    const spPct = Math.max(0, Math.min(100, (u.maxSp ? (u.sp/u.maxSp*100) : 0)));
+    const spDisplay = getSpBarDisplay(u);
     div.innerHTML = `
       <div>${u.name}</div>
       <div class="hpbar"><div class="hpfill" style="width:${hpPct}%"></div></div>
-      <div class="spbar"><div class="spfill" style="width:${spPct}%"></div></div>
+      <div class="spbar"><div class="spfill" style="width:${spDisplay.spPct}%; background:${spDisplay.color}"></div></div>
     `;
     const facingArrow=document.createElement('div');
     facingArrow.className='facing-arrow';
@@ -2747,12 +2761,12 @@ function renderLargeUnitOverlay(u){
   });
 
   const hpPct = Math.max(0, Math.min(100, (u.hp/u.maxHp*100)||0));
-  const spPct = Math.max(0, Math.min(100, (u.maxSp ? (u.sp/u.maxSp*100) : 0)));
+  const spDisplay = getSpBarDisplay(u);
 
   overlay.innerHTML = `
     <div class="title">${u.name}</div>
     <div class="hpbar"><div class="hpfill" style="width:${hpPct}%"></div></div>
-    <div class="spbar"><div class="spfill" style="width:${spPct}%"></div></div>
+    <div class="spbar"><div class="spfill" style="width:${spDisplay.spPct}%; background:${spDisplay.color}"></div></div>
   `;
   const facingArrow=document.createElement('div');
   facingArrow.className='facing-arrow';
@@ -2800,6 +2814,7 @@ function summarizeNegatives(u){
   if(u.status.recoverStacks>0) parts.push(`恢复x${u.status.recoverStacks}`);
   if(u.status.jixueStacks>0) parts.push(`鸡血x${u.status.jixueStacks}`);
   if(u.status.dependStacks>0) parts.push(`依赖x${u.status.dependStacks}`);
+  if(u.status.resentStacks>0) parts.push(`怨念x${u.status.resentStacks}`);
   if(u._spBroken) parts.push(`SP崩溃`);
   if(u._spCrashVuln) parts.push('SP崩溃易伤');
   if(u._stanceType && u._stanceTurns>0){
