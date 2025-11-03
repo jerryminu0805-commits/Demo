@@ -293,6 +293,60 @@ function forwardRectCentered(u, dir, lateralWidth, depth){
   }
   return res;
 }
+// 2x2 单位前方矩形区域（对齐边缘，横向宽度 x 前向深度）
+function forwardRect2x2(u, dir, lateralWidth, depth){
+  if(u.size !== 2) return forwardRectCentered(u, dir, lateralWidth, depth);
+  
+  const res=[];
+  const d = DIRS[dir];
+  
+  // 对于2x2单位，计算攻击起始边缘
+  // 单位占据 (u.r, u.c), (u.r+1, u.c), (u.r, u.c+1), (u.r+1, u.c+1)
+  
+  if(dir === 'left'){
+    // 攻击左侧，从 (u.r, u.c-1) 和 (u.r+1, u.c-1) 开始
+    const startC = u.c - 1;
+    for(let step = 0; step < depth; step++){
+      const c = startC - step;
+      for(let extraR = 0; extraR < lateralWidth; extraR++){
+        const r = u.r + extraR - Math.floor((lateralWidth - 2) / 2);
+        if(clampCell(r, c)) res.push({r, c, dir});
+      }
+    }
+  } else if(dir === 'right'){
+    // 攻击右侧，从 (u.r, u.c+2) 和 (u.r+1, u.c+2) 开始
+    const startC = u.c + 2;
+    for(let step = 0; step < depth; step++){
+      const c = startC + step;
+      for(let extraR = 0; extraR < lateralWidth; extraR++){
+        const r = u.r + extraR - Math.floor((lateralWidth - 2) / 2);
+        if(clampCell(r, c)) res.push({r, c, dir});
+      }
+    }
+  } else if(dir === 'up'){
+    // 攻击上方，从 (u.r-1, u.c) 和 (u.r-1, u.c+1) 开始
+    const startR = u.r - 1;
+    for(let step = 0; step < depth; step++){
+      const r = startR - step;
+      for(let extraC = 0; extraC < lateralWidth; extraC++){
+        const c = u.c + extraC - Math.floor((lateralWidth - 2) / 2);
+        if(clampCell(r, c)) res.push({r, c, dir});
+      }
+    }
+  } else if(dir === 'down'){
+    // 攻击下方，从 (u.r+2, u.c) 和 (u.r+2, u.c+1) 开始
+    const startR = u.r + 2;
+    for(let step = 0; step < depth; step++){
+      const r = startR + step;
+      for(let extraC = 0; extraC < lateralWidth; extraC++){
+        const c = u.c + extraC - Math.floor((lateralWidth - 2) / 2);
+        if(clampCell(r, c)) res.push({r, c, dir});
+      }
+    }
+  }
+  
+  return res;
+}
 
 // —— 日志/FX & UI 样式 ——
 function appendLog(txt){
@@ -2186,7 +2240,7 @@ function rotateDirCounterClockwise(dir){
   }
 }
 async function khathia_FleshBlade(u, dir){
-  const area = forwardRectCentered(u, dir, 2, 1);
+  const area = forwardRect2x2(u, dir, 2, 1);
   if(area.length===0){ appendLog('血肉之刃：前方没有可以攻击的格子'); unitActed(u); return; }
   await telegraphThenImpact(area);
   const targets = khathiaCollectTargets(area);
@@ -2204,7 +2258,7 @@ async function khathia_FleshBlade(u, dir){
   unitActed(u);
 }
 async function khathia_GrudgeClaw(u, dir){
-  const area = forwardRectCentered(u, dir, 2, 2);
+  const area = forwardRect2x2(u, dir, 2, 2);
   if(area.length===0){ appendLog('怨念之爪：前方没有可以抓取的目标'); unitActed(u); return; }
   await telegraphThenImpact(area);
   const targets = khathiaCollectTargets(area);
@@ -2217,7 +2271,7 @@ async function khathia_GrudgeClaw(u, dir){
   unitActed(u);
 }
 async function khathia_BrutalSweep(u, dir){
-  const area = forwardRectCentered(u, dir, 4, 2);
+  const area = forwardRect2x2(u, dir, 4, 2);
   if(area.length===0){ appendLog('蛮横横扫：范围内没有敌人'); unitActed(u); return; }
   await telegraphThenImpact(area);
   const targets = khathiaCollectTargets(area);
@@ -2231,7 +2285,8 @@ async function khathia_BrutalSweep(u, dir){
   unitActed(u);
 }
 async function khathia_Overwork(u, dir){
-  const first = forwardRectCentered(u, dir, 2, 2);
+  // Stage 1: 2x2 area, 2 steps forward
+  const first = forwardRect2x2(u, dir, 2, 2);
   if(first.length===0){ appendLog('能者多劳：前方没有空间'); unitActed(u); return; }
   await telegraphThenImpact(first);
   const firstTargets = khathiaCollectTargets(first);
@@ -2241,8 +2296,9 @@ async function khathia_Overwork(u, dir){
     u.dmgDone += 10;
   }
   await stageMark(first);
-  const leftDir = rotateDirCounterClockwise(dir);
-  const second = forwardRectCentered(u, leftDir, 2, 2);
+  
+  // Stage 2: Same 2x2 area (attacks same cells again)
+  const second = forwardRect2x2(u, dir, 2, 2);
   if(second.length>0){
     await telegraphThenImpact(second);
     const secondTargets = khathiaCollectTargets(second);
@@ -2254,7 +2310,22 @@ async function khathia_Overwork(u, dir){
     }
     await stageMark(second);
   }
-  const third = forwardRectCentered(u, dir, 4, 2);
+  
+  // Stage 3: Extended area from same position to map edge (width 2, depth to edge)
+  // Calculate maximum depth based on direction and position
+  // For 2x2 unit at (r,c), occupies rows r,r+1 and columns c,c+1
+  let maxDepth = 2;
+  if(dir === 'down'){
+    maxDepth = ROWS - (u.r + 1); // From bottom edge (r+2) to map bottom (ROWS)
+  } else if(dir === 'up'){
+    maxDepth = u.r - 1; // From top edge (r-1) to map top (1)
+  } else if(dir === 'left'){
+    maxDepth = u.c - 1; // From left edge (c-1) to map left (1)
+  } else if(dir === 'right'){
+    maxDepth = COLS - (u.c + 1); // From right edge (c+2) to map right (COLS)
+  }
+  
+  const third = forwardRect2x2(u, dir, 2, maxDepth);
   if(third.length>0){
     await telegraphThenImpact(third);
     const thirdTargets = khathiaCollectTargets(third);
@@ -2439,25 +2510,35 @@ function buildSkillFactoriesForUnit(u){
   } else if(u.id==='khathia'){
     F.push(
       { key:'血肉之刃', prob:0.70, cond:()=>true, make:()=> skill('血肉之刃',1,'green','前方2x1：15HP+10HP，多段叠怨念',
-        (uu,aimDir)=> { const dir=aimDir||uu.facing; return forwardRectCentered(uu,dir,2,1).map(c=>({...c,dir})); },
+        (uu,aimDir)=> { const dir=aimDir||uu.facing; return forwardRect2x2(uu,dir,2,1).map(c=>({...c,dir})); },
         (uu,desc)=> { const dir = desc && desc.dir ? desc.dir : uu.facing; khathia_FleshBlade(uu, dir); },
         {},
         {castMs:1100}
       )},
       { key:'怨念之爪', prob:0.70, cond:()=>true, make:()=> skill('怨念之爪',1,'green','前方2x2：10HP+15SP并叠怨念',
-        (uu,aimDir)=> { const dir=aimDir||uu.facing; return forwardRectCentered(uu,dir,2,2).map(c=>({...c,dir})); },
+        (uu,aimDir)=> { const dir=aimDir||uu.facing; return forwardRect2x2(uu,dir,2,2).map(c=>({...c,dir})); },
         (uu,desc)=> { const dir = desc && desc.dir ? desc.dir : uu.facing; khathia_GrudgeClaw(uu, dir); },
         {},
         {castMs:1100}
       )},
       { key:'蛮横横扫', prob:0.60, cond:()=>true, make:()=> skill('蛮横横扫',2,'red','前方4x2：20HP并附恐惧',
-        (uu,aimDir)=> { const dir=aimDir||uu.facing; return forwardRectCentered(uu,dir,4,2).map(c=>({...c,dir})); },
+        (uu,aimDir)=> { const dir=aimDir||uu.facing; return forwardRect2x2(uu,dir,4,2).map(c=>({...c,dir})); },
         (uu,desc)=> { const dir = desc && desc.dir ? desc.dir : uu.facing; khathia_BrutalSweep(uu, dir); },
         {aoe:true},
         {castMs:1400}
       )},
-      { key:'能者多劳', prob:0.45, cond:()=>true, make:()=> skill('能者多劳',2,'red','多段：前2x2→左侧2x2→前4x2，叠怨念并削SP',
-        (uu,aimDir)=> { const dir=aimDir||uu.facing; return forwardRectCentered(uu,dir,4,2).map(c=>({...c,dir})); },
+      { key:'能者多劳', prob:0.45, cond:()=>true, make:()=> skill('能者多劳',2,'red','多段：前2x2→同区→至边缘，叠怨念并削SP',
+        (uu,aimDir)=> { 
+          const dir=aimDir||uu.facing; 
+          // Show the maximum range (stage 3) for targeting
+          // For 2x2 unit, calculate depth to map edge in attack direction
+          let maxDepth = 2;
+          if(dir === 'down'){ maxDepth = ROWS - (uu.r + 1); }
+          else if(dir === 'up'){ maxDepth = uu.r - 1; }
+          else if(dir === 'left'){ maxDepth = uu.c - 1; }
+          else if(dir === 'right'){ maxDepth = COLS - (uu.c + 1); }
+          return forwardRect2x2(uu,dir,2,maxDepth).map(c=>({...c,dir})); 
+        },
         (uu,desc)=> { const dir = desc && desc.dir ? desc.dir : uu.facing; khathia_Overwork(uu, dir); },
         {aoe:true},
         {castMs:1900}
