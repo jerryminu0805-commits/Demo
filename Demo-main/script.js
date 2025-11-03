@@ -193,6 +193,7 @@ units['khathia'] = createUnit('khathia','Khathia','enemy',35, 4, 19, 700, 100, 0
   disableSpCrash:true,
   maxMovePerTurn:3,
   initialSp:0,
+  pullImmune:true,
 });
 
 // —— 范围/工具 ——
@@ -3610,7 +3611,10 @@ async function exhaustEnemySteps(){
       }
       if(candidates.length>0){
         didAct = await execEnemySkillCandidate(en, candidates[0]);
-        if(didAct) progressedThisRound = true;
+        if(didAct){
+          progressedThisRound = true;
+          await aiAwait(600); // 技能施放后延迟，避免连续技能过快
+        }
       }
 
       // 2) 无技能可用 → 向玩家移动
