@@ -356,6 +356,8 @@ function injectFXStyles(){
   .hpbar,.spbar { width: 90%; height: 6px; background: rgba(255,255,255,0.08); border-radius: 4px; margin-top: 4px; overflow: hidden; }
   .hpbar .hpfill { height: 100%; background: #ff4d4f; }
   .spbar .spfill { height: 100%; background: #40a9ff; }
+  .spbar.sp-negative { background: rgba(139,92,246,0.15); }
+  .spbar.sp-negative .spfill.sp-negative { background: #8b5cf6; }
 
   .fx-layer { position: absolute; inset: 0; pointer-events: none; z-index: var(--fx-z); }
   .fx { position: absolute; will-change: transform, opacity; --fx-offset-x: 0px; --fx-offset-y: -28px; }
@@ -1956,4 +1958,384 @@ function darioPull(u, targetOrDesc){
   }
   const dmg = calcOutgoingDamage(u,20,target,'拿来吧你！');
   damageUnit(target.id, dmg, 0, `${u.name} 的 拿来吧你！ 命中 ${target.name}`, u.id,{skillFx:'dario:拿来吧你！'});
-  applyStun
+  applyStunOrStack(target, 1, {reason:'拿来吧你！'});
+  u.dmgDone += dmg; unitActed(u);
+}
+
+// —— 渲染函数 —— 
+function buildGrid(){
+  if(!battleAreaEl) return;
+  battleAreaEl.style.setProperty('--cell', `${CELL_SIZE}px`);
+  battleAreaEl.style.gridTemplateColumns = `repeat(${COLS}, var(--cell))`;
+  battleAreaEl.style.gridTemplateRows = `repeat(${ROWS}, var(--cell))`;
+  const preservedFxLayer = fxLayer;
+  battleAreaEl.innerHTML = '';
+  for(let r=1;r<=ROWS;r++){
+    for(let c=1;c<=COLS;c++){
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.r=r; cell.dataset.c=c;
+      const coord=document.createElement('div'); coord.className='coord'; coord.textContent=`${r},${c}`; cell.appendChild(coord);
+
+      cell.addEventListener('click', ()=>{
+        if(interactionLocked) return;
+        const rr=+cell.dataset.r, cc=+cell.dataset.c;
+        if(_skillSelection){
+          handleSkillConfirmCell(_skillSelection.unit,_skillSelection.skill,{r:rr,c:cc});
+          return;
+        }
+        const occ = getUnitAt(rr,cc);
+        if(occ){
+          if(godsWillArmed){ showGodsWillMenuAtUnit(occ); return; }
+          onUnitClick(occ.id); return;
+        }
+        onCellClick(rr,cc);
+      });
+
+      battleAreaEl.appendChild(cell);
+    }
+  }
+  if(preservedFxLayer && preservedFxLayer.parentElement !== battleAreaEl){
+    battleAreaEl.appendChild(preservedFxLayer);
+  }
+}
+
+function placeUnits(){
+  if(!battleAreaEl) return;
+  document.querySelectorAll('.cell .unit').forEach(n=>n.remove());
+  battleAreaEl.querySelectorAll('.largeOverlay').forEach(n=>n.remove());
+
+  for(const id in units){
+    const u=units[id]; if(u.hp<=0) continue;
+
+    if(u.size===2){
+      renderLargeUnitOverlay(u);
+      continue;
+    }
+
+    const sel=`.cell[data-r="${u.r}"][data-c="${u.c}"]`;    const cell=document.querySelector(sel);
+    if(!cell) continue;
+    const div=document.createElement('div');
+    div.className='unit ' + (u.side==='player'?'player':'enemy');
+    div.dataset.id=id;
+    div.dataset.facing = u.facing || 'right';
+
+    div.addEventListener('click',(e)=>{
+      if(interactionLocked) return;
+      if(godsWillArmed){
+        e.stopPropagation();
+        showGodsWillMenuAtUnit(u);
+        return;
+      }
+      if(_skillSelection){
+        e.stopPropagation();
+        handleSkillConfirmCell(_skillSelection.unit,_skillSelection.skill,{r:u.r,c:u.c});
+        return;
+      }
+      e.stopPropagation();
+      onUnitClick(id);
+    });
+
+    const hpPct = Math.max(0, Math.min(100, (u.hp/u.maxHp*100)||0));
+    let spPct, spBarClass = 'spbar', spFillClass = 'spfill';
+    
+    // Handle negative SP with purple bar
+    if(u.sp < 0){
+      const spFloor = (typeof u.spFloor === 'number') ? u.spFloor : 0;
+      // Calculate percentage: 0 = empty (sp=0), 100 = full (sp=spFloor)
+      spPct = Math.max(0, Math.min(100, Math.abs(u.sp / spFloor * 100)));
+      spBarClass += ' sp-negative';
+      spFillClass += ' sp-negative';
+    } else {
+      spPct = Math.max(0, Math.min(100, (u.maxSp ? (u.sp/u.maxSp*100) : 0)));
+    }
+    
+    div.innerHTML = `
+      <div>${u.name}</div>
+      <div class="hpbar"><div class="hpfill" style="width:${hpPct}%"></div></div>
+      <div class="${spBarClass}"><div class="${spFillClass}" style="width:${spPct}%"></div></div>
+    `;
+    const facingArrow=document.createElement('div');
+    facingArrow.className='facing-arrow';
+    div.appendChild(facingArrow);
+    cell.appendChild(div);
+  }
+}
+
+function renderLargeUnitOverlay(u){
+  const tl = getCellEl(u.r, u.c);
+  const br = getCellEl(u.r+1, u.c+1);
+  if(!tl || !br || !battleAreaEl) return;
+
+  const left   = tl.offsetLeft;
+  const top    = tl.offsetTop;
+  const right  = br.offsetLeft + br.offsetWidth;
+  const bottom = br.offsetTop  + br.offsetHeight;
+  const width  = right - left;
+  const height = bottom - top;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'largeOverlay ' + (u.side==='player'?'player':'enemy');
+  overlay.dataset.facing = u.facing || 'right';
+  overlay.style.position = 'absolute';
+  overlay.style.left = left + 'px';
+  overlay.style.top  = top  + 'px';
+  overlay.style.width  = width  + 'px';
+  overlay.style.height = height + 'px';
+  overlay.style.background = 'rgba(255,77,79,0.08)';
+  overlay.style.border = '1px solid rgba(255,77,79,0.35)';
+  overlay.style.borderRadius = '10px';
+  overlay.style.color = '#e9eefc';
+  overlay.style.display = 'grid';
+  overlay.style.gridTemplateRows = 'auto auto auto';
+  overlay.style.placeItems = 'center';
+  overlay.style.padding = '6px 8px';
+  overlay.style.pointerEvents = 'auto';
+
+  overlay.addEventListener('click', (e)=>{
+    if(interactionLocked) return;
+    if(_skillSelection){
+      const attacker = _skillSelection.unit;
+      const skill = _skillSelection.skill;
+      const aim = chooseBestAimCellForLargeTarget(attacker, skill, u) || {r:u.r, c:u.c};
+      handleSkillConfirmCell(attacker, skill, aim);
+      return;
+    }
+    onUnitClick(u.id);
+  });
+
+  const hpPct = Math.max(0, Math.min(100, (u.hp/u.maxHp*100)||0));
+  let spPct, spBarClass = 'spbar', spFillClass = 'spfill';
+  
+  // Handle negative SP with purple bar
+  if(u.sp < 0){
+    const spFloor = (typeof u.spFloor === 'number') ? u.spFloor : 0;
+    // Calculate percentage: 0 = empty (sp=0), 100 = full (sp=spFloor)
+    spPct = Math.max(0, Math.min(100, Math.abs(u.sp / spFloor * 100)));
+    spBarClass += ' sp-negative';
+    spFillClass += ' sp-negative';
+  } else {
+    spPct = Math.max(0, Math.min(100, (u.maxSp ? (u.sp/u.maxSp*100) : 0)));
+  }
+
+  overlay.innerHTML = `
+    <div class="title">${u.name}</div>
+    <div class="hpbar"><div class="hpfill" style="width:${hpPct}%"></div></div>
+    <div class="${spBarClass}"><div class="${spFillClass}" style="width:${spPct}%"></div></div>
+  `;
+  const facingArrow=document.createElement('div');
+  facingArrow.className='facing-arrow';
+  overlay.appendChild(facingArrow);
+
+  battleAreaEl.appendChild(overlay);
+}
+
+function getCoveredCells(u){
+  if(!u || u.hp<=0) return [];
+  if(u.size===2) return [{r:u.r,c:u.c},{r:u.r+1,c:u.c},{r:u.r,c:u.c+1},{r:u.r+1,c:u.c+1}];
+  return [{r:u.r,c:u.c}];
+}
+
+function chooseBestAimCellForLargeTarget(attacker, sk, target){
+  if(!attacker || !sk || !target) return null;
+  const cells = getCoveredCells(target);
+  let best=null, bestD=1e9;
+  for(const c of cells){
+    const dir = resolveAimDirForSkill(attacker, sk, c);
+    let inRange=false;
+    try{
+      const rc = sk.rangeFn(attacker, dir, c) || [];
+      inRange = rangeIncludeCell(rc, c);
+    }catch(e){ inRange=false; }
+    if(inRange){
+      const d = mdist(attacker, c);
+      if(d < bestD){ bestD=d; best=c; }
+    }
+  }
+  if(best) return best;
+  let nearest=cells[0], nd=mdist(attacker, cells[0]);
+  for(const c of cells){ const d=mdist(attacker,c); if(d<nd){ nd=d; nearest=c; } }
+  return nearest;
+}
+
+function summarizeNegatives(u){
+  let parts=[];
+  if(u._staggerStacks && (u.stunThreshold||1)>1) parts.push(`叠层${u._staggerStacks}/${u.stunThreshold}`);
+  if(u.status.stunned>0) parts.push(`眩晕x${u.status.stunned}`);
+  if(u.status.paralyzed>0) parts.push(`恐惧x${u.status.paralyzed}`);
+  if(u.status.bleed>0) parts.push(`流血x${u.status.bleed}`);
+  if(u.status.recoverStacks>0) parts.push(`恢复x${u.status.recoverStacks}`);
+  if(u.status.jixueStacks>0) parts.push(`鸡血x${u.status.jixueStacks}`);
+  if(u.status.dependStacks>0) parts.push(`依赖x${u.status.dependStacks}`);
+  if(u.status.resentStacks>0) parts.push(`怨念x${u.status.resentStacks}`);
+  if(u._spBroken) parts.push(`SP崩溃`);
+  if(u._spCrashVuln) parts.push('SP崩溃易伤');
+  if(u._stanceType && u._stanceTurns>0){
+    parts.push(u._stanceType==='defense' ? `防御姿态(${u._stanceTurns})` : `反伤姿态(${u._stanceTurns})`);
+  }
+  return parts.join(' ');
+}
+
+function renderStatus(){
+  if(!partyStatus) return;
+  partyStatus.innerHTML='';
+  for(const id of ['adora','dario','karma']){
+    const u=units[id]; if(!u) continue;
+    const el=document.createElement('div'); el.className='partyRow';
+    el.innerHTML=`<strong>${u.name}</strong> HP:${u.hp}/${u.maxHp} SP:${u.sp}/${u.maxSp} ${summarizeNegatives(u)}`;
+    partyStatus.appendChild(el);
+  }
+  const enemyWrap=document.createElement('div'); enemyWrap.style.marginTop='10px'; enemyWrap.innerHTML='<strong>敌方（疲惫的极限）</strong>';
+  const enemyUnits = Object.values(units).filter(u=>u.side==='enemy' && u.hp>0);
+  for(const u of enemyUnits){
+    const el=document.createElement('div'); el.className='partyRow small';
+    el.innerHTML=`${u.name} HP:${u.hp}/${u.maxHp} SP:${u.sp}/${u.maxSp} ${u.oppression?'[压迫] ':''}${u._comeback?'[力挽狂澜] ':''}${summarizeNegatives(u)}`;
+    enemyWrap.appendChild(el);
+  }
+  partyStatus.appendChild(enemyWrap);
+}
+
+function updateStepsUI(){
+  if(playerStepsEl) playerStepsEl.textContent=playerSteps;
+  if(enemyStepsEl) enemyStepsEl.textContent=enemySteps;
+  if(roundCountEl) roundCountEl.textContent = String(roundsPassed);
+}
+
+function renderAll(){
+  buildGrid();
+  placeUnits();
+  renderStatus();
+  updateStepsUI();
+  if(checkWin()) return;
+}
+
+function checkWin(){
+  const playerAlive = Object.values(units).filter(u=>u.side==='player' && u.hp>0).length > 0;
+  const enemyAlive = Object.values(units).filter(u=>u.side==='enemy' && u.hp>0).length > 0;
+  
+  if(!enemyAlive && playerAlive){
+    appendLog('战斗胜利！所有敌人已被击败！');
+    if(accomplish){
+      accomplish.classList.remove('hidden');
+      if(damageSummary){
+        let summary = '<h3>伤害统计</h3>';
+        for(const id of ['adora','dario','karma']){
+          const u = units[id];
+          if(u) summary += `<div>${u.name}: ${u.dmgDone} 伤害</div>`;
+        }
+        damageSummary.innerHTML = summary;
+      }
+    }
+    return true;
+  }
+  
+  if(!playerAlive && enemyAlive){
+    appendLog('战斗失败！所有玩家单位已阵亡！');
+    return true;
+  }
+  
+  return false;
+}
+
+// —— Placeholder stubs for missing functions —— 
+function resolveAimDirForSkill(u, sk, aimCell){
+  const vecDir = cardinalDirFromDelta(aimCell.r - u.r, aimCell.c - u.c);
+  try{
+    const cells = sk.rangeFn(u, vecDir, aimCell) || [];
+    if(rangeIncludeCell(cells, aimCell)) return vecDir;
+  }catch(e){}
+  for(const dir of Object.keys(DIRS)){
+    let cells=[];
+    try{ cells = sk.rangeFn(u, dir, aimCell) || []; }catch(e){ cells=[]; }
+    if(rangeIncludeCell(cells, aimCell)) return dir;
+  }
+  return vecDir;
+}
+
+function rangeIncludeCell(cells, aimCell){ 
+  return cells.some(c=>c.r===aimCell.r && c.c===aimCell.c); 
+}
+
+function handleSkillConfirmCell(u, sk, aimCell){
+  appendLog(`handleSkillConfirmCell stub called for ${u.name} with ${sk.name}`);
+}
+
+function onUnitClick(id){
+  appendLog(`Unit clicked: ${id}`);
+}
+
+function onCellClick(r,c){
+  appendLog(`Cell clicked: ${r},${c}`);
+}
+
+function showGodsWillMenuAtUnit(u){
+  appendLog(`GOD'S WILL menu stub for ${u.name}`);
+}
+
+function refreshLargeOverlays(){
+  if(!battleAreaEl) return;
+  battleAreaEl.querySelectorAll('.largeOverlay').forEach(n=>n.remove());
+  for(const id in units){
+    const u=units[id];
+    if(u.hp>0 && u.size===2) renderLargeUnitOverlay(u);
+  }
+}
+
+// —— 初始化 —— 
+document.addEventListener('DOMContentLoaded', ()=>{
+  battleAreaEl = document.getElementById('battleArea');
+  mapPaneEl = document.getElementById('mapPane');
+  cameraEl = battleAreaEl;
+  playerStepsEl = document.getElementById('playerSteps');
+  enemyStepsEl = document.getElementById('enemySteps');
+  roundCountEl = document.getElementById('roundCount');
+  partyStatus = document.getElementById('partyStatus');
+  selectedInfo = document.getElementById('selectedInfo');
+  skillPool = document.getElementById('skillPool');
+  logEl = document.getElementById('log');
+  accomplish = document.getElementById('accomplish');
+  damageSummary = document.getElementById('damageSummary');
+
+  updateCameraBounds();
+  createCameraControls();
+  registerCameraInputs();
+  cameraReset({immediate:true});
+  startCameraLoop();
+
+  injectFXStyles();
+
+  playerSteps = computeBaseSteps();
+  enemySteps = computeBaseSteps();
+
+  renderAll();
+  updateCameraBounds();
+  applyCameraTransform();
+
+  setTimeout(()=> refreshLargeOverlays(), 0);
+  setTimeout(()=> refreshLargeOverlays(), 240);
+  if('requestAnimationFrame' in window){
+    requestAnimationFrame(()=> refreshLargeOverlays());
+  }
+  window.addEventListener('load', ()=> refreshLargeOverlays());
+
+  appendLog('疲惫的极限：地图 10x20。');
+  appendLog('Khathia SP 从 0 开始，降至 -100 时触发疲劳崩溃（50真伤+眩晕+减步），然后恢复至 -25。');
+  appendLog('怨念会在回合开始时吞噬目标的 5% SP。');
+
+  const endTurnBtn=document.getElementById('endTurnBtn');
+  if(endTurnBtn) endTurnBtn.addEventListener('click', ()=>{ 
+    if(interactionLocked) return; 
+    appendLog('回合结束（部分功能未实现）');
+  });
+
+  let _resizeTimer=null;
+  window.addEventListener('resize', ()=>{
+    if(_resizeTimer) clearTimeout(_resizeTimer);
+    _resizeTimer = setTimeout(()=>{
+      refreshLargeOverlays();
+      updateCameraBounds();
+    }, 120);
+  });
+
+  appendLog('初始化完成');
+});
