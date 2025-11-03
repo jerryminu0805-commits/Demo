@@ -1789,7 +1789,10 @@ function checkKhathiaFatigue(u){
     u._fatigueCrashLock = true;
     appendLog(`${u.name} 的“疲劳的躯体”崩溃：SP 跌至 -100`);
     damageUnit(u.id, 50, 0, `${u.name} 疲劳崩溃`, u.id, {trueDamage:true, ignoreToughBody:true, skillFx:'khathia:疲劳崩溃'});
-    applyStunOrStack(u, 1, {bypass:true, reason:'疲劳崩溃'});
+    // Apply stun Buff (3 turns) instead of 1 layer
+    const stunDuration = 3;
+    updateStatusStacks(u, 'stunned', Math.max(u.status.stunned || 0, stunDuration), {label:'眩晕', type:'debuff'});
+    appendLog(`${u.name} 因疲劳崩溃，陷入眩晕 Buff（${stunDuration} 回合）`);
     if(u.side==='enemy'){
       enemySteps = Math.max(0, enemySteps - 1);
       appendLog('疲劳崩溃：敌方额外 -1 步');
