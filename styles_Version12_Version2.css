@@ -141,8 +141,6 @@ body {
 /* SP：正值为青色，负值为紫色（紫条越满，SP 越低；满紫=-100） */
 .spbar { position: relative; }
 .spbar .spfill { position: absolute; left:0; top:0; height:100%; }
-.spbar .spfill.pos { background: linear-gradient(90deg, #36cfc9, #13c2c2); }
-.spbar .spfill.neg { background: linear-gradient(90deg, #9254de, #722ed1); }
 
 .unit .facing-arrow,
 .largeOverlay .facing-arrow {
