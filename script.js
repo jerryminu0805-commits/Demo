@@ -193,6 +193,7 @@ units['khathia'] = createUnit('khathia','Khathia','enemy',35, 4, 19, 700, 100, 0
   disableSpCrash:true,
   maxMovePerTurn:3,
 });
+units['khathia'].sp = 0;
 
 // —— 范围/工具 ——
 const DIRS = { up:{dr:-1,dc:0}, down:{dr:1,dc:0}, left:{dr:0,dc:-1}, right:{dr:0,dc:1} };
@@ -280,14 +281,27 @@ function canPlace2x2(u, r, c){
 // 横斩区域（横向宽度 x 前向深度）
 function forwardRectCentered(u, dir, lateralWidth, depth){
   const res=[];
+  const seen = new Set();
   const d = DIRS[dir];
+  if(!d) return res;
   const lat = (dir==='up'||dir==='down') ? {dr:0,dc:1} : {dr:1,dc:0};
-  const half = Math.floor(lateralWidth/2);
+  const baseR = u.size===2 ? (u.r + 0.5) : u.r;
+  const baseC = u.size===2 ? (u.c + 0.5) : u.c;
+  const startOffset = -((lateralWidth - 1) / 2);
   for(let step=1; step<=depth; step++){
-    for(let w=-half; w<=half; w++){
-      const rr = u.r + d.dr*step + lat.dr*w;
-      const cc = u.c + d.dc*step + lat.dc*w;
-      if(clampCell(rr,cc)) res.push({r:rr,c:cc,dir});
+    for(let i=0; i<lateralWidth; i++){
+      const off = startOffset + i;
+      const rr = baseR + d.dr*step + lat.dr*off;
+      const cc = baseC + d.dc*step + lat.dc*off;
+      const cellR = Math.round(rr);
+      const cellC = Math.round(cc);
+      if(clampCell(cellR,cellC)){
+        const key = `${cellR},${cellC}`;
+        if(!seen.has(key)){
+          seen.add(key);
+          res.push({r:cellR,c:cellC,dir});
+        }
+      }
     }
   }
   return res;
@@ -2689,11 +2703,11 @@ function placeUnits(){
     });
 
     const hpPct = Math.max(0, Math.min(100, (u.hp/u.maxHp*100)||0));
-    const spPct = Math.max(0, Math.min(100, (u.maxSp ? (u.sp/u.maxSp*100) : 0)));
+    const spMarkup = buildSpBar(u);
     div.innerHTML = `
       <div>${u.name}</div>
       <div class="hpbar"><div class="hpfill" style="width:${hpPct}%"></div></div>
-      <div class="spbar"><div class="spfill" style="width:${spPct}%"></div></div>
+      ${spMarkup}
     `;
     const facingArrow=document.createElement('div');
     facingArrow.className='facing-arrow';
@@ -2703,6 +2717,17 @@ function placeUnits(){
 }
 
 //part 1 结束
+function buildSpBar(u){
+  const floor = (typeof u.spFloor === 'number') ? u.spFloor : 0;
+  if(u.sp < 0 && floor < 0){
+    const span = Math.abs(floor) || 1;
+    const pct = Math.max(0, Math.min(100, Math.round(Math.abs(u.sp) / span * 100)));
+    return `<div class="spbar negative"><div class="spfill negative" style="width:${pct}%"></div></div>`;
+  }
+  const pct = (u.maxSp>0) ? Math.max(0, Math.min(100, Math.round((u.sp / u.maxSp) * 100))) : 0;
+  return `<div class="spbar positive"><div class="spfill positive" style="width:${pct}%"></div></div>`;
+}
+
 function renderLargeUnitOverlay(u){
   // Pixel-perfect 2x2 overlay using actual cell offsets to avoid rounding drift
   const tl = getCellEl(u.r, u.c);
@@ -2747,12 +2772,12 @@ function renderLargeUnitOverlay(u){
   });
 
   const hpPct = Math.max(0, Math.min(100, (u.hp/u.maxHp*100)||0));
-  const spPct = Math.max(0, Math.min(100, (u.maxSp ? (u.sp/u.maxSp*100) : 0)));
+  const spMarkup = buildSpBar(u);
 
   overlay.innerHTML = `
     <div class="title">${u.name}</div>
     <div class="hpbar"><div class="hpfill" style="width:${hpPct}%"></div></div>
-    <div class="spbar"><div class="spfill" style="width:${spPct}%"></div></div>
+    ${spMarkup}
   `;
   const facingArrow=document.createElement('div');
   facingArrow.className='facing-arrow';
@@ -2800,6 +2825,7 @@ function summarizeNegatives(u){
   if(u.status.recoverStacks>0) parts.push(`恢复x${u.status.recoverStacks}`);
   if(u.status.jixueStacks>0) parts.push(`鸡血x${u.status.jixueStacks}`);
   if(u.status.dependStacks>0) parts.push(`依赖x${u.status.dependStacks}`);
+  if(u.status.resentStacks>0) parts.push(`怨念x${u.status.resentStacks}`);
   if(u._spBroken) parts.push(`SP崩溃`);
   if(u._spCrashVuln) parts.push('SP崩溃易伤');
   if(u._stanceType && u._stanceTurns>0){
