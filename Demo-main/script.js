@@ -183,9 +183,9 @@ function createUnit(id, name, side, level, r, c, maxHp, maxSp, restoreOnZeroPct,
 }
 const units = {};
 // 玩家
-units['adora'] = createUnit('adora','Adora','player',52, 4, 2, 100,100, 0.5,0, ['backstab','calmAnalysis','proximityHeal','fearBuff']);
-units['dario'] = createUnit('dario','Dario','player',52, 2, 2, 150,100, 0.75,0, ['quickAdjust','counter','moraleBoost']);
-units['karma'] = createUnit('karma','Karma','player',52, 6, 2, 200,50, 0.5,20, ['violentAddiction','toughBody','pride']);
+units['adora'] = createUnit('adora','Adora','player',35, 4, 2, 100,100, 0.5,0, ['backstab','calmAnalysis','proximityHeal','fearBuff']);
+units['dario'] = createUnit('dario','Dario','player',35, 2, 2, 150,100, 0.75,0, ['quickAdjust','counter','moraleBoost']);
+units['karma'] = createUnit('karma','Karma','player',35, 6, 2, 200,50, 0.5,20, ['violentAddiction','toughBody','pride']);
 
 // 疲惫的极限 Boss
 units['khathia'] = createUnit('khathia','Khathia','enemy',35, 4, 19, 700, 0, 0, 0, ['khathiaVeteran','khathiaTwisted','khathiaFatigue','khathiaDesign'], {
@@ -3231,8 +3231,8 @@ function applyLevelSuppression(){
   const playerAvg = avg(Object.values(units).filter(u=>u.side==='player' && u.hp>0));
   const enemyAvg  = avg(Object.values(units).filter(u=>u.side==='enemy' && u.hp>0));
   if(playerAvg===null||enemyAvg===null) return;
-  if(playerAvg>enemyAvg){ const add=Math.floor((playerAvg-enemyAvg)/5); if(add>0){ playerSteps += add; appendLog(`等级压制：玩家 +${add} 步`); } }
-  else if(enemyAvg>playerAvg){ const add=Math.floor((enemyAvg-playerAvg)/5); if(add>0){ enemySteps += add; appendLog(`敌方 +${add} 步（等级压制）`); } }
+  if(playerAvg>enemyAvg){ playerSteps += 2; appendLog(`等级压制：玩家 +2 步`); }
+  else if(enemyAvg>playerAvg){ enemySteps += 2; appendLog(`敌方 +2 步（等级压制）`); }
   updateStepsUI();
 }
 function processUnitsTurnStart(side){
