@@ -2270,7 +2270,7 @@ function rotateDirCounterClockwise(dir){
 }
 async function khathia_FleshBlade(u, dir){
   markKhathiaSkillUsed(u);
-  const area = forwardRect2x2(u, dir, 2, 1);
+  const area = forwardRect2x2(u, dir, 2, 2);
   if(area.length===0){ appendLog('血肉之刃：前方没有可以攻击的格子'); unitActed(u); return; }
   await telegraphThenImpact(area);
   const targets = khathiaCollectTargets(area);
@@ -2544,8 +2544,8 @@ function buildSkillFactoriesForUnit(u){
     );
   } else if(u.id==='khathia'){
     F.push(
-      { key:'血肉之刃', prob:0.70, cond:()=>true, make:()=> skill('血肉之刃',1,'green','前方2x1：15HP+10HP，多段叠怨念',
-        (uu,aimDir)=> { const dir=aimDir||uu.facing; return forwardRect2x2(uu,dir,2,1).map(c=>({...c,dir})); },
+      { key:'血肉之刃', prob:0.70, cond:()=>true, make:()=> skill('血肉之刃',1,'green','前方2x2：15HP+10HP，多段叠怨念',
+        (uu,aimDir)=> { const dir=aimDir||uu.facing; return forwardRect2x2(uu,dir,2,2).map(c=>({...c,dir})); },
         async (uu,desc)=> { const dir = desc && desc.dir ? desc.dir : uu.facing; await khathia_FleshBlade(uu, dir); },
         {},
         {castMs:1100}
