@@ -1769,7 +1769,7 @@ function handleSpCrashIfNeeded(u){
     if(!u._spCrashVuln){
       u._spCrashVuln = true;
       showStatusFloat(u,'SP崩溃易伤',{type:'debuff', offsetY:-88});
-      appendLog(`${u.name} 处于 SP 崩溃易伤：受到的伤害翻倍，直到眩晕解除且 SP 恢复`);
+      appendLog(`${u.name} 处于 SP 崩溃易伤：受到的伤害 x1.5，直到眩晕解除且 SP 恢复`);
     }
     applyStunOrStack(u, 1, {bypass:true, reason:'SP崩溃'});
     if(u.side==='player'){ playerSteps = Math.max(0, playerSteps - 1); } else { enemySteps = Math.max(0, enemySteps - 1); }
@@ -1790,10 +1790,10 @@ function checkKhathiaFatigue(u){
     u._fatigueCrashLock = true;
     appendLog(`${u.name} 的“疲劳的躯体”崩溃：SP 跌至 -100`);
     damageUnit(u.id, 50, 0, `${u.name} 疲劳崩溃`, u.id, {trueDamage:true, ignoreToughBody:true, skillFx:'khathia:疲劳崩溃'});
-    // Apply stun Buff instead of 1 layer
-    const appliedStunDuration = Math.max(u.status.stunned || 0, KHATHIA_FATIGUE_STUN_DURATION);
-    updateStatusStacks(u, 'stunned', appliedStunDuration, {label:'眩晕', type:'debuff'});
-    appendLog(`${u.name} 因疲劳崩溃，陷入眩晕 Buff（${appliedStunDuration} 回合）`);
+    // Apply only 1 stun layer
+    const newStunValue = (u.status.stunned || 0) + 1;
+    updateStatusStacks(u, 'stunned', newStunValue, {label:'眩晕', type:'debuff'});
+    appendLog(`${u.name} 因疲劳崩溃，眩晕 +1 层（当前 ${newStunValue}）`);
     if(u.side==='enemy'){
       enemySteps = Math.max(0, enemySteps - 1);
       appendLog('疲劳崩溃：敌方额外 -1 步');
@@ -1918,9 +1918,9 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
   }
 
   if(u._spCrashVuln && (hpDmg>0 || spDmg>0)){
-    hpDmg = Math.round(hpDmg * 2);
-    spDmg = Math.round(spDmg * 2);
-    appendLog(`${u.name} 因 SP 崩溃眩晕承受双倍伤害！`);
+    hpDmg = Math.round(hpDmg * 1.5);
+    spDmg = Math.round(spDmg * 1.5);
+    appendLog(`${u.name} 因 SP 崩溃眩晕承受 1.5 倍伤害！`);
   }
 
   const prevHp = u.hp;
@@ -2965,6 +2965,7 @@ function updateStepsUI(){
 // —— 选中/瞄准 —— 
 function canUnitMove(u){
   if(!u) return false;
+  if(u.status && u.status.stunned > 0) return false; // 眩晕期间禁止移动
   if(u._stanceType && u._stanceTurns>0) return false; // 姿态期间禁止移动
   if(typeof u.maxMovePerTurn === 'number' && u.maxMovePerTurn >= 0){
     if((u.stepsMovedThisTurn||0) >= u.maxMovePerTurn) return false;
