@@ -1843,21 +1843,31 @@ function applyStunOrStack(target, layers=1, {reason='', bypass=false}={}){
 }
 function handleSpCrashIfNeeded(u){
   if(!u || u.hp<=0) return;
-  if(u.sp <= 0 && !u._spBroken){
+  const spCrashThreshold = u.spCrashThreshold !== undefined ? u.spCrashThreshold : 0;
+  if(u.sp <= spCrashThreshold && !u._spBroken){
     u._spBroken = true;
     if(!u._spCrashVuln){
       u._spCrashVuln = true;
       showStatusFloat(u,'SP崩溃易伤',{type:'debuff', offsetY:-88});
-      appendLog(`${u.name} 处于 SP 崩溃易伤：受到的伤害翻倍，直到眩晕解除且 SP 恢复`);
+      appendLog(`${u.name} 处于 SP 崩溃易伤：受到的伤害x1.5，直到眩晕解除且 SP 恢复`);
     }
-    applyStunOrStack(u, 1, {bypass:true, reason:'SP崩溃'});
-    if(u.side==='player'){ playerSteps = Math.max(0, playerSteps - 1); } else { enemySteps = Math.max(0, enemySteps - 1); }
-    const restored = Math.floor(u.maxSp * u.restoreOnZeroPct);
-    u.spPendingRestore = Math.max(u.spPendingRestore ?? 0, restored);
-    appendLog(`${u.name} 的 SP 崩溃：下个己方回合自动恢复至 ${u.spPendingRestore}`);
+    
+    // Lirathe Phase 2: At -80 SP, take 20 true damage and lose control
+    if(u.id === 'lirathe' && u._transformed && u.sp <= -80){
+      damageUnit(u.id, u.spZeroHpPenalty || 20, 0, `${u.name} 因 SP 跌破 -80 受到真实伤害`, null, {trueDamage: true, ignoreCover: true, ignoreJixue: true, ignoreDepend: true});
+      appendLog(`${u.name} 的 SP 跌破 -80：自动恢复至 -10`);
+      u.sp = -10;
+      u.spPendingRestore = null;
+    } else {
+      applyStunOrStack(u, 1, {bypass:true, reason:'SP崩溃'});
+      if(u.side==='player'){ playerSteps = Math.max(0, playerSteps - 1); } else { enemySteps = Math.max(0, enemySteps - 1); }
+      const restored = Math.floor(u.maxSp * u.restoreOnZeroPct);
+      u.spPendingRestore = Math.max(u.spPendingRestore ?? 0, restored);
+      appendLog(`${u.name} 的 SP 崩溃：下个己方回合自动恢复至 ${u.spPendingRestore}`);
+    }
   }
-  if(u.sp > 0 && u._spBroken) u._spBroken = false;
-  if(u.sp > 0){
+  if(u.sp > spCrashThreshold && u._spBroken) u._spBroken = false;
+  if(u.sp > spCrashThreshold){
     refreshSpCrashVulnerability(u);
   }
 }
@@ -1865,7 +1875,8 @@ function applySpDamage(targetOrId, amount, {sourceId=null, reason=null}={}){
   const u = typeof targetOrId === 'string' ? units[targetOrId] : targetOrId;
   if(!u || u.hp<=0 || amount<=0) return 0;
   const before = u.sp;
-  u.sp = Math.max(0, u.sp - amount);
+  const minSp = u.minSp !== undefined ? u.minSp : 0;
+  u.sp = Math.max(minSp, u.sp - amount);
   const delta = before - u.sp;
   if(delta>0){
     showDamageFloat(u,0,delta);
@@ -1906,7 +1917,7 @@ function calcOutgoingDamage(attacker, baseDmg, target, skillName){
     dmg = Math.round(dmg * (1 + lostRatio * 0.5));
   }
   if(attacker.id==='karma' && skillName==='沙包大的拳头' && (attacker.consecAttacks||0)>=1){ dmg = Math.round(dmg*1.5); }
-  if(attacker.id==='adora' && skillName==='短匕轻挥' && target){ dmg = Math.round(dmg * backstabMultiplier(attacker,target)); }
+  if((attacker.id==='adora' || attacker.id==='adora_phantom') && skillName==='短匕轻挥' && target){ dmg = Math.round(dmg * backstabMultiplier(attacker,target)); }
   if(attacker.team==='seven'){ dmg = Math.max(0, dmg - 5); }
   if(attacker.id==='haz' && attacker.hp <= attacker.maxHp/2){ dmg = Math.round(dmg * 1.3); }
   if(attacker.id==='haz' && attacker._comeback) dmg = Math.round(dmg * 1.10);
@@ -2023,6 +2034,13 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
     spDmg = Math.round(spDmg * 2);
     appendLog(`${u.name} 因 SP 崩溃眩晕承受双倍伤害！`);
   }
+  
+  // Lirathe weakness vulnerability from stepping on weakness tile
+  if(u._weaknessVulnerable && (hpDmg>0 || spDmg>0)){
+    hpDmg = Math.round(hpDmg * 1.5);
+    spDmg = Math.round(spDmg * 1.5);
+    appendLog(`${u.name} 因软肋承受额外伤害！`);
+  }
 
   const prevHp = u.hp;
   let finalHp = Math.max(0, hpDmg);
@@ -2037,7 +2055,8 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
   }
 
   u.hp = Math.max(0, u.hp - finalHp);
-  u.sp = Math.max(0, u.sp - finalSp);
+  const minSp = u.minSp !== undefined ? u.minSp : 0;
+  u.sp = Math.max(minSp, u.sp - finalSp);
   
   // Lock Karma to minimum HP during final phase
   if(u._lockedMinHp !== undefined && u.hp < u._lockedMinHp){
@@ -2092,6 +2111,21 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
       }
     }
   }
+  
+  // Dario 反击 passive: 50% chance to counter with 机械爪击
+  if(sourceId && (u.id==='dario' || u.id==='dario_phantom') && u.passives.includes('counterattack') && !opts._counterattack){
+    if(Math.random() < 0.5){
+      const src = units[sourceId];
+      if(src && src.hp>0 && src.side!==u.side){
+        appendLog(`${u.name} 的"反击"触发：反击一次机械爪击`);
+        setTimeout(()=>{
+          if(src.hp > 0){
+            darioClaw(u, src);
+          }
+        }, 300);
+      }
+    }
+  }
 
   if(sourceId){
     const src = units[sourceId];
@@ -2118,6 +2152,11 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
   handleSpCrashIfNeeded(u);
   checkHazComebackStatus();
   
+  // 意识花苞：记录受伤回合（用于恢复被动）
+  if(u.passives && u.passives.includes('recovery') && (finalHp > 0 || finalSp > 0)){
+    u._lastDamagedRound = roundsPassed;
+  }
+  
   // Lirathe HP≤400 Final Phase trigger
   if(u.id === 'lirathe' && u._transformed && u.hp <= 400 && u.hp > 0 && !u._finalPhaseTriggered){
     u._finalPhaseTriggered = true;
@@ -2130,6 +2169,12 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
 function handleUnitDeath(u, source){
   if(!u) return;
   
+  // 意识花苞死后创建"软肋"格子
+  if(u.id && u.id.startsWith('consciousness_')){
+    createWeaknessTile(u.r, u.c);
+    appendLog(`${u.name} 死后，格子变为"软肋"格子`);
+  }
+  
   // Lirathe Phase 1 → Phase 2 transformation
   if(u.id === 'lirathe' && !u._transformed && u.hp <= 0){
     u.hp = 1; // Prevent actual death
@@ -2138,8 +2183,10 @@ function handleUnitDeath(u, source){
     u.hp = 1200;
     u.maxSp = 0;
     u.sp = -10;
+    u.minSp = -80; // Lirathe Phase 2 can go to -80 SP
     u.restoreOnZeroPct = 0;
     u.spZeroHpPenalty = 20;
+    u.spCrashThreshold = -80; // Changed from 0 to -80
     
     // Clear skill pool, force redraw Phase 2 skills
     u.skillPool = [];
@@ -3645,7 +3692,7 @@ async function consciousFlower_Resist(u, desc){
   await telegraphThenImpact(cells);
   
   let target = null;
-  for(const c of lines){
+  for(const c of cells){
     const tu=getUnitAt(c.r,c.c);
     if(tu && tu.side!=='enemy'){ target = tu; break; }
   }
@@ -3774,7 +3821,7 @@ function getSelectedSkillKeysForUnit(u) {
 
 function buildSkillFactoriesForUnit(u){
   const F=[];
-  if(u.id==='adora'){
+  if(u.id==='adora' || u.id==='adora_phantom'){
     F.push(
       { key:'短匕轻挥', prob:0.85, cond:()=>true, make:()=> skill('短匕轻挥',1,'green','邻格 10HP +5SP（背刺x1.5）',
         (uu,aimDir,aimCell)=> aimCell && mdist(uu,aimCell)===1? [{r:aimCell.r,c:aimCell.c,dir:cardinalDirFromDelta(aimCell.r-uu.r,aimCell.c-uu.c)}] : range_adjacent(uu),
@@ -3837,7 +3884,7 @@ function buildSkillFactoriesForUnit(u){
         {castMs:1200}
       )}
     );
-  } else if(u.id==='dario'){
+  } else if(u.id==='dario' || u.id==='dario_phantom'){
     F.push(
       { key:'机械爪击', prob:0.90, cond:()=>true, make:()=> skill('机械爪击',1,'green','前方1-2格 15HP',
         (uu,aimDir)=> aimDir? range_forward_n(uu,2,aimDir) : (()=>{const a=[]; for(const d in DIRS) range_forward_n(uu,2,d).forEach(x=>a.push(x)); return a;})(),
@@ -4418,6 +4465,28 @@ function buildGrid(){
       cell.className = 'cell';
       if(isVoidCell(r,c)) cell.classList.add('void');
       if(isCoverCell(r,c)) cell.classList.add('cover');
+      
+      // Add visual indicator for healing tiles
+      const tileKey = `${r},${c}`;
+      if(window._healingTiles && window._healingTiles.has(tileKey)){
+        cell.classList.add('healing-tile');
+        const healIcon = document.createElement('div');
+        healIcon.className = 'tile-icon';
+        healIcon.textContent = '✚';
+        healIcon.style.cssText = 'position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:32px; color:#52c41a; pointer-events:none; text-shadow:0 0 8px #52c41a;';
+        cell.appendChild(healIcon);
+      }
+      
+      // Add visual indicator for weakness tiles
+      if(window._weaknessTiles && window._weaknessTiles.has(tileKey)){
+        cell.classList.add('weakness-tile');
+        const weakIcon = document.createElement('div');
+        weakIcon.className = 'tile-icon';
+        weakIcon.textContent = '⚠';
+        weakIcon.style.cssText = 'position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:32px; color:#ff4d4f; pointer-events:none; text-shadow:0 0 8px #ff4d4f;';
+        cell.appendChild(weakIcon);
+      }
+      
       cell.dataset.r=r; cell.dataset.c=c;
       const coord=document.createElement('div'); coord.className='coord'; coord.textContent=`${r},${c}`; cell.appendChild(coord);
 
@@ -4643,8 +4712,8 @@ function summarizeNegatives(u){
 function renderStatus(){
   if(!partyStatus) return;
   partyStatus.innerHTML='';
-  for(const id of ['adora','dario','karma']){
-    const u=units[id]; if(!u) continue;
+  for(const id of ['adora','dario','karma','adora_phantom','dario_phantom']){
+    const u=units[id]; if(!u || u.hp <= 0) continue;
     const el=document.createElement('div'); el.className='partyRow';
     el.innerHTML=`<strong>${u.name}</strong> HP:${u.hp}/${u.maxHp} SP:${u.sp}/${u.maxSp} ${summarizeNegatives(u)}`;
     partyStatus.appendChild(el);
@@ -4668,6 +4737,8 @@ function updateStepsUI(){
 function canUnitMove(u){
   if(!u) return false;
   if(u._stanceType && u._stanceTurns>0) return false; // 姿态期间禁止移动
+  if(u.passives && u.passives.includes('rooted')) return false; // 根深蒂固被动：无法移动
+  if(u.id === 'lirathe' && u._transformed) return false; // Lirathe Phase 2: 失去普通移动能力
   return true;
 }
 function showDistanceDisplay(r, c, distance){
@@ -5042,6 +5113,7 @@ function processUnitsTurnStart(side){
     // Check healing tiles for player units
     if(side==='player'){
       checkHealingTiles();
+      checkWeaknessTiles();
     }
     if(u._stanceType && u._stanceTurns>0){
       if(u._stanceSpPerTurn>0){
@@ -5058,7 +5130,12 @@ function processUnitsTurnStart(side){
     }
 
     if(u.spPendingRestore!=null){
-      const val = Math.min(u.maxSp, u.spPendingRestore);
+      let val = Math.min(u.maxSp, u.spPendingRestore);
+      // Dario quickAdjust passive: Additional 25% SP restore
+      if((u.id==='dario' || u.id==='dario_phantom') && u.passives.includes('quickAdjust')){
+        val = Math.min(u.maxSp, Math.floor(val * 1.25));
+        appendLog(`${u.name} 的"快速调整"触发：额外恢复 25% SP`);
+      }
       u.sp = val; syncSpBroken(u); u.spPendingRestore = null;
       appendLog(`${u.name} 的 SP 自动恢复至 ${val}`); showGainFloat(u,0,val);
       if(u.id==='haz'){
@@ -5088,6 +5165,16 @@ function processUnitsTurnStart(side){
       u.status.hazBleedTurns = Math.max(0, u.status.hazBleedTurns-1);
     }
 
+    // 意识花苞 "恢复" 被动：3回合内未受伤则恢复20HP
+    if(u.passives && u.passives.includes('recovery')){
+      if(u._lastDamagedRound !== undefined && roundsPassed - u._lastDamagedRound >= 3){
+        const before = u.hp;
+        u.hp = Math.min(u.maxHp, u.hp + 20);
+        showGainFloat(u, u.hp - before, 0);
+        appendLog(`${u.name} 的"恢复"被动触发：+20HP`);
+      }
+    }
+
     // 老的堡垒兼容（现在已由姿态系统取代）
     if(u.id==='tusk' && u._fortressTurns>0){
       u.sp = Math.min(u.maxSp, u.sp+10);
@@ -5103,7 +5190,7 @@ function processUnitsTurnEnd(side){
   for(const id in units){
     const u=units[id];
     if(u.side!==side) continue;
-    if(u.id==='adora' && u.passives.includes('calmAnalysis')){
+    if((u.id==='adora' || u.id==='adora_phantom') && u.passives.includes('calmAnalysis')){
       if((u.actionsThisTurn||0)===0){
         u.sp = Math.min(u.maxSp, u.sp + 10);
         syncSpBroken(u);
@@ -5119,22 +5206,30 @@ function processUnitsTurnEnd(side){
       const next = Math.max(0, u.status.stunned-1);
       updateStatusStacks(u,'stunned', next, {label:'眩晕', type:'debuff'});
       appendLog(`${u.name} 的眩晕减少 1（剩余 ${u.status.stunned}）`);
+      // Clear weakness vulnerability when stun ends
+      if(u.id === 'lirathe' && next === 0 && u._weaknessVulnerable){
+        u._weaknessVulnerable = false;
+        appendLog(`${u.name} 恢复正常`);
+      }
     }
   }
 }
 function applyEndOfRoundPassives(){
-  const adora = units['adora'];
-  if(adora && adora.hp>0 && adora.passives.includes('proximityHeal')){
-    for(const oid in units){
-      const v=units[oid];
-      if(!v || v.id===adora.id || v.side!==adora.side || v.hp<=0) continue;
-      if(Math.max(Math.abs(v.r-adora.r), Math.abs(v.c-adora.c)) <= 3){
-        const heal = Math.max(1, Math.floor(v.maxHp*0.05));
-        v.hp = Math.min(v.maxHp, v.hp + heal);
-        v.sp = Math.min(v.maxSp, v.sp + 5);
-        syncSpBroken(v);
-        appendLog(`Adora 邻近治疗：为 ${v.name} 恢复 ${heal} HP 和 5 SP`);
-        showGainFloat(v,heal,5);
+  // Check both adora and adora_phantom for proximity heal
+  for(const adoraId of ['adora', 'adora_phantom']){
+    const adora = units[adoraId];
+    if(adora && adora.hp>0 && adora.passives.includes('proximityHeal')){
+      for(const oid in units){
+        const v=units[oid];
+        if(!v || v.id===adora.id || v.side!==adora.side || v.hp<=0) continue;
+        if(Math.max(Math.abs(v.r-adora.r), Math.abs(v.c-adora.c)) <= 3){
+          const heal = Math.max(1, Math.floor(v.maxHp*0.05));
+          v.hp = Math.min(v.maxHp, v.hp + heal);
+          v.sp = Math.min(v.maxSp, v.sp + 5);
+          syncSpBroken(v);
+          appendLog(`${adora.name} 邻近治疗：为 ${v.name} 恢复 ${heal} HP 和 5 SP`);
+          showGainFloat(v,heal,5);
+        }
       }
     }
   }
@@ -5223,6 +5318,11 @@ async function triggerLiratheFinalPhase(){
     window._healingTiles.clear();
   }
   
+  // Clear weakness tiles
+  if(window._weaknessTiles){
+    window._weaknessTiles.clear();
+  }
+  
   interactionLocked = false;
   renderAll();
 }
@@ -5307,6 +5407,35 @@ function checkHealingTiles(){
   }
 }
 
+function createWeaknessTile(r, c){
+  if(!window._weaknessTiles) window._weaknessTiles = new Set();
+  window._weaknessTiles.add(`${r},${c}`);
+  appendLog(`软肋格子出现在 (${r},${c})！`);
+  renderAll();
+}
+
+function checkWeaknessTiles(){
+  if(!window._weaknessTiles) return;
+  const lirathe = units['lirathe'];
+  if(!lirathe || lirathe.hp <= 0 || !lirathe._transformed) return;
+  
+  for(const id in units){
+    const u = units[id];
+    if(u && u.hp>0 && u.side==='player'){
+      const key = `${u.r},${u.c}`;
+      if(window._weaknessTiles.has(key) && lirathe._highGround){
+        // Lirathe falls down
+        lirathe._highGround = false;
+        addStatusStacks(lirathe, 'stunned', 1, {label:'眩晕', type:'debuff'});
+        lirathe._weaknessVulnerable = true; // Take 50% more damage
+        appendLog(`${u.name} 踩到软肋格子：Lirathe 从高处掉落并眩晕！`);
+        window._weaknessTiles.delete(key);
+        renderAll();
+      }
+    }
+  }
+}
+
 function finishEnemyTurn(){
   clearAIWatchdog();
   processUnitsTurnEnd('enemy');
@@ -5314,8 +5443,8 @@ function finishEnemyTurn(){
   
   // Round 2: Spawn Adora and Dario phantoms
   if(roundsPassed === 2 && !units['adora_phantom']){
-    units['adora_phantom'] = createUnit('adora_phantom','Adora（虚影）','player',50, 5, 20, 150,50, 0.5,20, ['calmAnalysis']);
-    units['dario_phantom'] = createUnit('dario_phantom','Dario（虚影）','player',50, 5, 24, 180,50, 0.5,20, []);
+    units['adora_phantom'] = createUnit('adora_phantom','Adora（虚影）','player',50, 5, 20, 100,100, 0.5,20, ['calmAnalysis','fearBuff','proximityHeal','backstab']);
+    units['dario_phantom'] = createUnit('dario_phantom','Dario（虚影）','player',50, 5, 24, 150,100, 0.75,20, ['quickAdjust','counterattack','moraleBoost']);
     
     ensureStartHand(units['adora_phantom']);
     ensureStartHand(units['dario_phantom']);
@@ -5662,10 +5791,16 @@ async function exhaustEnemySteps(){
 
       // 1) 尝试技能
       let didAct = false;
-      const candidates = buildSkillCandidates(en);
-      if(candidates.length>0){
-        didAct = await execEnemySkillCandidate(en, candidates[0]);
-        if(didAct) progressedThisRound = true;
+      
+      // limitedAction passive: can only use 1 skill per turn
+      if(en.passives && en.passives.includes('limitedAction') && (en.actionsThisTurn||0) >= 1){
+        aiLog(en,'limitedAction: 本回合已使用技能，跳过');
+      } else {
+        const candidates = buildSkillCandidates(en);
+        if(candidates.length>0){
+          didAct = await execEnemySkillCandidate(en, candidates[0]);
+          if(didAct) progressedThisRound = true;
+        }
       }
 
       // 2) 无技能可用 → 向玩家移动
