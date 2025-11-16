@@ -2038,6 +2038,12 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
 
   u.hp = Math.max(0, u.hp - finalHp);
   u.sp = Math.max(0, u.sp - finalSp);
+  
+  // Lock Karma to minimum HP during final phase
+  if(u._lockedMinHp !== undefined && u.hp < u._lockedMinHp){
+    u.hp = u._lockedMinHp;
+  }
+  
   const died = prevHp > 0 && u.hp <= 0;
 
   const totalImpact = finalHp + finalSp;
@@ -2111,12 +2117,48 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
 
   handleSpCrashIfNeeded(u);
   checkHazComebackStatus();
+  
+  // Lirathe HP≤400 Final Phase trigger
+  if(u.id === 'lirathe' && u._transformed && u.hp <= 400 && u.hp > 0 && !u._finalPhaseTriggered){
+    u._finalPhaseTriggered = true;
+    setTimeout(()=> triggerLiratheFinalPhase(), 500);
+  }
 
   renderAll();
 }
 
 function handleUnitDeath(u, source){
   if(!u) return;
+  
+  // Lirathe Phase 1 → Phase 2 transformation
+  if(u.id === 'lirathe' && !u._transformed && u.hp <= 0){
+    u.hp = 1; // Prevent actual death
+    u._transformed = true;
+    u.maxHp = 1200;
+    u.hp = 1200;
+    u.maxSp = 0;
+    u.sp = -10;
+    u.restoreOnZeroPct = 0;
+    u.spZeroHpPenalty = 20;
+    
+    // Clear skill pool, force redraw Phase 2 skills
+    u.skillPool = [];
+    u.dealtStart = false;
+    ensureStartHand(u);
+    
+    appendLog('=====================');
+    appendLog('Lirathe 进入第二阶段！');
+    appendLog('变身后的Lirathe失去了视力，但听觉敏锐！');
+    appendLog('=====================');
+    
+    // Start consciousness flower and healing tile timers
+    u._consciousnessFlowerRounds = 0;
+    u._healingTileRounds = 0;
+    
+    renderAll();
+    return; // Don't process normal death
+  }
+  
   if(u.id === 'haz' && !hazTeamCollapsed){
     hazTeamCollapsed = true;
     appendLog('Haz 倒下，七海作战队群龙无首！其余成员全数溃散。');
@@ -3210,6 +3252,415 @@ async function kyn_ShadowDance_AOE(u){
   unitActed(u);
 }
 
+// —— Lirathe Skills（Phase 1 & Phase 2） ——
+async function lirathe_DashSlash(u, desc){
+  const dir = desc && desc.dir ? desc.dir : u.facing;
+  setUnitFacing(u, dir);
+  const cells = range_forward_n(u,4,dir);
+  await telegraphThenImpact(cells);
+  
+  let finalTarget = null;
+  for(const c of cells){
+    const tu=getUnitAt(c.r,c.c);
+    if(tu && tu.side!=='enemy') finalTarget = tu;
+  }
+  
+  // Dash to the cell (stop at last enemy or at end)
+  let newR=u.r, newC=u.c;
+  for(const c of cells){
+    const occ=getUnitAt(c.r,c.c);
+    if(occ && occ.side!=='enemy') break;
+    if(!occ || occ===u){ newR=c.r; newC=c.c; }
+  }
+  if(newR!==u.r || newC!==u.c){
+    showTrail(u.r,u.c,newR,newC);
+    u.r=newR; u.c=newC;
+  }
+  
+  if(finalTarget){
+    damageUnit(finalTarget.id, 15, 0, `${u.name} 刺斩 ${finalTarget.name}`, u.id, {skillName:'刺斩'});
+    // Add 脆弱 debuff (15% more damage this turn)
+    if(!finalTarget.status.vulnerableStacks) finalTarget.status.vulnerableStacks = 0;
+    finalTarget.status.vulnerableStacks += 1;
+    updateStatusStacks(finalTarget,'vulnerableStacks',finalTarget.status.vulnerableStacks,{label:'脆弱',type:'debuff'});
+    appendLog(`${finalTarget.name} 受到脆弱Debuff（本回合伤害+15%）`);
+  } else {
+    appendLog(`${u.name} 刺斩 未命中`);
+  }
+  renderAll();
+  unitActed(u);
+}
+
+async function lirathe_EscapeMove(u, payload){
+  const {r,c,dir} = payload;
+  if(!r || !c) return unitActed(u);
+  const prevR=u.r, prevC=u.c;
+  u.r=r; u.c=c;
+  if(dir) setUnitFacing(u, dir);
+  showTrail(prevR,prevC,r,c);
+  appendLog(`${u.name} 又想逃？ 移动至 (${r},${c})`);
+  
+  // Check adjacent enemies and deal 5HP
+  const adj = range_adjacent(u);
+  for(const p of adj){
+    const tu=getUnitAt(p.r,p.c);
+    if(tu && tu.side!=='enemy'){
+      damageUnit(tu.id, 5, 0, `${u.name} 又想逃 擦过 ${tu.name}`, u.id, {skillName:'又想逃'});
+    }
+  }
+  renderAll();
+  unitActed(u);
+}
+
+async function lirathe_BladeAbsorb(u, desc){
+  const dir = desc && desc.dir ? desc.dir : u.facing;
+  setUnitFacing(u, dir);
+  const cells = forwardRectCentered(u,dir,3,2);
+  await telegraphThenImpact(cells);
+  
+  const seen=new Set();
+  for(const c of cells){
+    const tu=getUnitAt(c.r,c.c);
+    if(tu && tu.side!=='enemy' && !seen.has(tu.id)){
+      damageUnit(tu.id, 20, 0, `${u.name} 刀光吸入 ${tu.name}`, u.id, {skillName:'刀光吸入'});
+      // Add blade light stack
+      if(!tu.status.bladeLightStacks) tu.status.bladeLightStacks = 0;
+      tu.status.bladeLightStacks += 1;
+      updateStatusStacks(tu,'bladeLightStacks',tu.status.bladeLightStacks,{label:'刀光',type:'debuff'});
+      
+      // Check if blade light reaches 10 stacks
+      if(tu.status.bladeLightStacks >= 10){
+        const burstDmg = tu.status.bladeLightStacks * 5;
+        damageUnit(tu.id, burstDmg, burstDmg, `刀光爆炸 ${tu.name}`, u.id, {skillName:'刀光爆炸'});
+        u.hp = Math.min(u.maxHp, u.hp + burstDmg);
+        u.sp = Math.min(u.maxSp, u.sp + burstDmg);
+        showDamageFloat(u, -burstDmg, -burstDmg);
+        appendLog(`${u.name} 刀光爆炸：恢复 ${burstDmg} HP/SP`);
+        tu.status.bladeLightStacks = 0;
+        updateStatusStacks(tu,'bladeLightStacks',0,{label:'刀光',type:'debuff'});
+      }
+      seen.add(tu.id);
+    }
+  }
+  renderAll();
+  unitActed(u);
+}
+
+async function lirathe_SwordDance(u, desc){
+  const dir = desc && desc.dir ? desc.dir : u.facing;
+  setUnitFacing(u, dir);
+  
+  let hitCount = 0;
+  const seen=new Set();
+  
+  // Stage 1: Forward 3x2
+  let cells = forwardRectCentered(u,dir,3,2);
+  await telegraphThenImpact(cells);
+  for(const c of cells){
+    const tu=getUnitAt(c.r,c.c);
+    if(tu && tu.side!=='enemy' && !seen.has(tu.id)){
+      damageUnit(tu.id, 20, 0, `${u.name} 剑舞阶段1 ${tu.name}`, u.id, {skillName:'剑舞'});
+      if(!tu.status.vulnerableStacks) tu.status.vulnerableStacks = 0;
+      tu.status.vulnerableStacks += 1;
+      updateStatusStacks(tu,'vulnerableStacks',tu.status.vulnerableStacks,{label:'脆弱',type:'debuff'});
+      hitCount++; seen.add(tu.id);
+    }
+  }
+  
+  // Stage 2: Reverse direction
+  const revDir = {up:'down',down:'up',left:'right',right:'left'}[dir] || dir;
+  cells = forwardRectCentered(u,revDir,3,2);
+  await telegraphThenImpact(cells);
+  for(const c of cells){
+    const tu=getUnitAt(c.r,c.c);
+    if(tu && tu.side!=='enemy' && !seen.has(tu.id)){
+      damageUnit(tu.id, 20, 0, `${u.name} 剑舞阶段2 ${tu.name}`, u.id, {skillName:'剑舞'});
+      hitCount++; seen.add(tu.id);
+    }
+  }
+  
+  // Stage 3: 3x3
+  cells = range_square_n(u,1);
+  await telegraphThenImpact(cells);
+  for(const c of cells){
+    const tu=getUnitAt(c.r,c.c);
+    if(tu && tu.side!=='enemy' && !seen.has(tu.id)){
+      damageUnit(tu.id, 10, 0, `${u.name} 剑舞阶段3 ${tu.name}`, u.id, {skillName:'剑舞'});
+      hitCount++; seen.add(tu.id);
+    }
+  }
+  
+  // Stage 4: 5x5
+  cells = range_square_n(u,2);
+  await telegraphThenImpact(cells);
+  for(const c of cells){
+    const tu=getUnitAt(c.r,c.c);
+    if(tu && tu.side!=='enemy' && !seen.has(tu.id)){
+      damageUnit(tu.id, 15, 0, `${u.name} 剑舞阶段4 ${tu.name}`, u.id, {skillName:'剑舞'});
+      if(!tu.status.bladeLightStacks) tu.status.bladeLightStacks = 0;
+      tu.status.bladeLightStacks += 1;
+      updateStatusStacks(tu,'bladeLightStacks',tu.status.bladeLightStacks,{label:'刀光',type:'debuff'});
+      hitCount++; seen.add(tu.id);
+    }
+  }
+  
+  // Stage 5: 7x7
+  cells = range_square_n(u,3);
+  await telegraphThenImpact(cells);
+  for(const c of cells){
+    const tu=getUnitAt(c.r,c.c);
+    if(tu && tu.side!=='enemy' && !seen.has(tu.id)){
+      damageUnit(tu.id, 15, 0, `${u.name} 剑舞阶段5 ${tu.name}`, u.id, {skillName:'剑舞'});
+      if(!tu.status.bladeLightStacks) tu.status.bladeLightStacks = 0;
+      tu.status.bladeLightStacks += 1;
+      updateStatusStacks(tu,'bladeLightStacks',tu.status.bladeLightStacks,{label:'刀光',type:'debuff'});
+      hitCount++; seen.add(tu.id);
+    }
+  }
+  
+  // If all stages hit at least one enemy, add mockery buff
+  if(hitCount >= 5){
+    if(!u.status.mockeryStacks) u.status.mockeryStacks = 0;
+    u.status.mockeryStacks += 1;
+    updateStatusStacks(u,'mockeryStacks',u.status.mockeryStacks,{label:'戏谑',type:'buff'});
+    appendLog(`${u.name} 剑舞全段命中：获得戏谑Buff`);
+  }
+  
+  renderAll();
+  unitActed(u);
+}
+
+async function lirathe_SplashBlade(u, desc){
+  const dir = desc && desc.dir ? desc.dir : u.facing;
+  setUnitFacing(u, dir);
+  const line = range_line(u,dir);
+  
+  // Stage 1: Hit first enemy
+  await telegraphThenImpact(line);
+  let firstTarget = null;
+  for(const c of line){
+    const tu=getUnitAt(c.r,c.c);
+    if(tu && tu.side!=='enemy'){ firstTarget = tu; break; }
+  }
+  if(firstTarget){
+    damageUnit(firstTarget.id, 15, 0, `${u.name} 飞溅刀光阶段1 ${firstTarget.name}`, u.id, {skillName:'飞溅刀光'});
+    if(!firstTarget.status.bladeLightStacks) firstTarget.status.bladeLightStacks = 0;
+    firstTarget.status.bladeLightStacks += 1;
+    updateStatusStacks(firstTarget,'bladeLightStacks',firstTarget.status.bladeLightStacks,{label:'刀光',type:'debuff'});
+  }
+  
+  // Stage 2: Hit all enemies in line
+  await telegraphThenImpact(line);
+  const seen=new Set();
+  for(const c of line){
+    const tu=getUnitAt(c.r,c.c);
+    if(tu && tu.side!=='enemy' && !seen.has(tu.id)){
+      damageUnit(tu.id, 15, 0, `${u.name} 飞溅刀光阶段2 ${tu.name}`, u.id, {skillName:'飞溅刀光'});
+      if(!tu.status.bladeLightStacks) tu.status.bladeLightStacks = 0;
+      tu.status.bladeLightStacks += 1;
+      updateStatusStacks(tu,'bladeLightStacks',tu.status.bladeLightStacks,{label:'刀光',type:'debuff'});
+      seen.add(tu.id);
+    }
+  }
+  
+  // Stage 3: Charge and pierce first target
+  if(firstTarget && firstTarget.hp>0){
+    await telegraphThenImpact([{r:firstTarget.r,c:firstTarget.c}]);
+    damageUnit(firstTarget.id, 5, 0, `${u.name} 飞溅刀光阶段3贯穿 ${firstTarget.name}`, u.id, {skillName:'飞溅刀光'});
+    if(!firstTarget.status.bladeLightStacks) firstTarget.status.bladeLightStacks = 0;
+    firstTarget.status.bladeLightStacks += 1;
+    updateStatusStacks(firstTarget,'bladeLightStacks',firstTarget.status.bladeLightStacks,{label:'刀光',type:'debuff'});
+  }
+  
+  renderAll();
+  unitActed(u);
+}
+
+async function lirathe_DontRun(u, desc){
+  const dir = desc && desc.dir ? desc.dir : u.facing;
+  setUnitFacing(u, dir);
+  const line = range_line(u,dir);
+  await telegraphThenImpact(line);
+  
+  let firstTarget = null;
+  for(const c of line){
+    const tu=getUnitAt(c.r,c.c);
+    if(tu && tu.side!=='enemy'){ firstTarget = tu; break; }
+  }
+  
+  if(firstTarget){
+    damageUnit(firstTarget.id, 0, 15, `${u.name} 别跑蛛网 ${firstTarget.name}`, u.id, {skillName:'别跑'});
+    // 50% chance to immobilize
+    if(Math.random() < 0.5){
+      if(!firstTarget.status.immobilizedTurns) firstTarget.status.immobilizedTurns = 0;
+      firstTarget.status.immobilizedTurns += 1;
+      updateStatusStacks(firstTarget,'immobilizedTurns',firstTarget.status.immobilizedTurns,{label:'禁锢',type:'debuff'});
+      appendLog(`${firstTarget.name} 被禁锢（下回合无法移动）`);
+    }
+  } else {
+    appendLog(`${u.name} 别跑 未命中`);
+  }
+  
+  renderAll();
+  unitActed(u);
+}
+
+// Phase 2 skills
+async function lirathe_ChargeKill(u, desc){
+  const dir = desc && desc.dir ? desc.dir : u.facing;
+  setUnitFacing(u, dir);
+  const line = range_line(u,dir);
+  await telegraphThenImpact(line);
+  
+  const seen=new Set();
+  let newR=u.r, newC=u.c;
+  
+  for(const c of line){
+    const tu=getUnitAt(c.r,c.c);
+    if(tu && tu.side!=='enemy'){
+      damageUnit(tu.id, 20, 10, `${u.name} 冲杀 ${tu.name}`, u.id, {skillName:'冲杀'});
+      // Add corrosion
+      if(!tu.status.corrosionStacks) tu.status.corrosionStacks = 0;
+      tu.status.corrosionStacks += 1;
+      updateStatusStacks(tu,'corrosionStacks',tu.status.corrosionStacks,{label:'腐蚀',type:'debuff'});
+      seen.add(tu.id);
+    }
+    if(!tu || tu===u){ newR=c.r; newC=c.c; }
+  }
+  
+  if(newR!==u.r || newC!==u.c){
+    showTrail(u.r,u.c,newR,newC);
+    u.r=newR; u.c=newC;
+  }
+  
+  renderAll();
+  unitActed(u);
+}
+
+async function lirathe_WhereAreYou(u){
+  const cells = range_square_n(u,3);
+  await telegraphThenImpact(cells);
+  
+  const seen=new Set();
+  for(const c of cells){
+    const tu=getUnitAt(c.r,c.c);
+    if(tu && tu.side!=='enemy' && !seen.has(tu.id)){
+      damageUnit(tu.id, 0, 10, `${u.name} 你在哪吼叫 ${tu.name}`, u.id, {skillName:'你在哪'});
+      // Add corrosion
+      if(!tu.status.corrosionStacks) tu.status.corrosionStacks = 0;
+      tu.status.corrosionStacks += 1;
+      updateStatusStacks(tu,'corrosionStacks',tu.status.corrosionStacks,{label:'腐蚀',type:'debuff'});
+      // Add "seen" buff for Lirathe to see the unit
+      if(!tu.status.seenTurns) tu.status.seenTurns = 0;
+      tu.status.seenTurns = 1;
+      updateStatusStacks(tu,'seenTurns',tu.status.seenTurns,{label:'看见',type:'debuff'});
+      seen.add(tu.id);
+    }
+  }
+  
+  renderAll();
+  unitActed(u);
+}
+
+async function lirathe_RipHeart(u, desc){
+  // Find target in 2x2 area in front
+  const dir = desc && desc.dir ? desc.dir : u.facing;
+  setUnitFacing(u, dir);
+  
+  let target = null;
+  for(let dr=0;dr<=1;dr++){
+    for(let dc=0;dc<=1;dc++){
+      const rr=u.r+DIRS[dir].dr+dr, cc=u.c+DIRS[dir].dc+dc;
+      const tu=getUnitAt(rr,cc);
+      if(tu && tu.side!=='enemy'){ target = tu; break; }
+    }
+    if(target) break;
+  }
+  
+  if(!target){
+    appendLog(`${u.name} 掏心掏肺 未找到目标`);
+    return unitActed(u);
+  }
+  
+  const cells = [{r:target.r,c:target.c}];
+  
+  // 3 tears
+  for(let i=0;i<3;i++){
+    await telegraphThenImpact(cells);
+    if(target.hp>0){
+      damageUnit(target.id, 15, 5, `${u.name} 掏心掏肺撕扯${i+1} ${target.name}`, u.id, {skillName:'掏心掏肺'});
+      if(!target.status.corrosionStacks) target.status.corrosionStacks = 0;
+      target.status.corrosionStacks += 1;
+      updateStatusStacks(target,'corrosionStacks',target.status.corrosionStacks,{label:'腐蚀',type:'debuff'});
+    }
+  }
+  
+  // If corrosion > 5, repeat
+  if(target.hp>0 && target.status.corrosionStacks > 5){
+    appendLog(`${target.name} 腐蚀层数>5，重复掏心掏肺！`);
+    for(let i=0;i<3;i++){
+      await telegraphThenImpact(cells);
+      if(target.hp>0){
+        damageUnit(target.id, 15, 5, `${u.name} 掏心掏肺重复${i+1} ${target.name}`, u.id, {skillName:'掏心掏肺'});
+        if(!target.status.corrosionStacks) target.status.corrosionStacks = 0;
+        target.status.corrosionStacks += 1;
+        updateStatusStacks(target,'corrosionStacks',target.status.corrosionStacks,{label:'腐蚀',type:'debuff'});
+      }
+    }
+  }
+  
+  renderAll();
+  unitActed(u);
+}
+
+async function lirathe_CantFindWay(u){
+  // Charge in 4 directions
+  for(const dir of ['up','down','left','right']){
+    setUnitFacing(u, dir);
+    const line = range_line(u,dir);
+    await telegraphThenImpact(line);
+    
+    const seen=new Set();
+    for(const c of line){
+      const tu=getUnitAt(c.r,c.c);
+      if(tu && tu.side!=='enemy' && !seen.has(tu.id)){
+        damageUnit(tu.id, 20, 10, `${u.name} 找不到路${dir} ${tu.name}`, u.id, {skillName:'找不到路'});
+        if(!tu.status.corrosionStacks) tu.status.corrosionStacks = 0;
+        tu.status.corrosionStacks += 1;
+        updateStatusStacks(tu,'corrosionStacks',tu.status.corrosionStacks,{label:'腐蚀',type:'debuff'});
+        seen.add(tu.id);
+      }
+    }
+  }
+  
+  renderAll();
+  unitActed(u);
+}
+
+// Consciousness Flower skill
+async function consciousFlower_Resist(u, desc){
+  const dir = desc && desc.dir ? desc.dir : u.facing;
+  setUnitFacing(u, dir);
+  const cells = range_forward_n(u,3,dir);
+  await telegraphThenImpact(cells);
+  
+  let target = null;
+  for(const c of lines){
+    const tu=getUnitAt(c.r,c.c);
+    if(tu && tu.side!=='enemy'){ target = tu; break; }
+  }
+  
+  if(target){
+    damageUnit(target.id, 15, 5, `${u.name} 抵抗 ${target.name}`, u.id, {skillName:'抵抗'});
+  } else {
+    appendLog(`${u.name} 抵抗 未命中`);
+  }
+  
+  renderAll();
+  unitActed(u);
+}
+
+
 // —— Neyla 压迫后“终末之影”保证（每回合最多一张；无则添加/替换） ——
 function makeNeylaEndShadowSkill(u){
   return skill('终末之影',2,'red','全图任意单体 50HP+20SP',
@@ -3808,6 +4259,16 @@ function buildSkillFactoriesForUnit(u){
         )}
       );
     }
+  } else if(u.id && u.id.startsWith('consciousness_')){
+    // Consciousness Flower skills
+    F.push(
+      { key:'抵抗', prob:1.0, cond:()=>true, make:()=> skill('抵抗',1,'green','向前3格刺去造成15HP及5SP',
+        (uu,aimDir)=> aimDir? range_forward_n(uu,3,aimDir) : (()=>{const a=[]; for(const d in DIRS) range_forward_n(uu,3,d).forEach(x=>a.push(x)); return a;})(),
+        (uu,desc)=> consciousFlower_Resist(uu,desc),
+        {},
+        {castMs:900}
+      )}
+    );
   }
   
   // Filter skills based on selection if character is level 50+
@@ -4577,6 +5038,11 @@ function processUnitsTurnStart(side){
     if(u.id==='neyla' && u.oppression){ ensureNeylaEndShadowGuarantee(u); }
 
     // 姿态：回合开始时结算SP恢复与持续回合-1；结束时主动清除
+    
+    // Check healing tiles for player units
+    if(side==='player'){
+      checkHealingTiles();
+    }
     if(u._stanceType && u._stanceTurns>0){
       if(u._stanceSpPerTurn>0){
         const beforeSP = u.sp;
@@ -4673,10 +5139,211 @@ function applyEndOfRoundPassives(){
     }
   }
 }
+// —— Lirathe Phase 2 Helper Functions ——
+async function triggerLiratheFinalPhase(){
+  const lirathe = units['lirathe'];
+  const karma = units['karma'];
+  const adora_phantom = units['adora_phantom'];
+  const dario_phantom = units['dario_phantom'];
+  
+  if(!lirathe || lirathe.hp<=0) return;
+  
+  interactionLocked = true;
+  
+  // Restore Lirathe to full HP
+  lirathe.hp = lirathe.maxHp;
+  lirathe.status = {}; // Clear all debuffs
+  
+  // Adora and Dario phantoms HP→1, add 99 corrosion
+  if(adora_phantom && adora_phantom.hp>0){
+    adora_phantom.hp = 1;
+    if(!adora_phantom.status.corrosionStacks) adora_phantom.status.corrosionStacks = 0;
+    adora_phantom.status.corrosionStacks = 99;
+    updateStatusStacks(adora_phantom,'corrosionStacks',99,{label:'腐蚀',type:'debuff'});
+  }
+  if(dario_phantom && dario_phantom.hp>0){
+    dario_phantom.hp = 1;
+    if(!dario_phantom.status.corrosionStacks) dario_phantom.status.corrosionStacks = 0;
+    dario_phantom.status.corrosionStacks = 99;
+    updateStatusStacks(dario_phantom,'corrosionStacks',99,{label:'腐蚀',type:'debuff'});
+  }
+  
+  // Lock Karma to 1 HP
+  if(karma){
+    karma._lockedMinHp = 1;
+  }
+  
+  appendLog('=====================');
+  appendLog('Lirathe 最终阶段！');
+  appendLog('=====================');
+  
+  renderAll();
+  
+  // Pause 3 seconds
+  await aiAwait(3000);
+  
+  // Teleport Lirathe to Karma's side
+  if(karma && karma.hp>0){
+    const adj = range_adjacent(karma);
+    if(adj.length>0){
+      lirathe.r = adj[0].r;
+      lirathe.c = adj[0].c;
+    }
+  }
+  
+  renderAll();
+  
+  // Use 掏心掏肺 7 times
+  for(let i=0;i<7;i++){
+    if(lirathe.hp<=0) break;
+    await lirathe_RipHeart(lirathe, {dir:lirathe.facing});
+    await aiAwait(800);
+  }
+  
+  // Show dialogue
+  await showLiratheDialog();
+  
+  // Permanent stun
+  lirathe.status.stunned = 999;
+  lirathe._permanentStun = true;
+  appendLog('Lirathe 进入永久眩晕状态');
+  
+  // Stop spawning
+  lirathe._stopSpawning = true;
+  
+  // Remove all consciousness flowers
+  for(const id in units){
+    if(id.startsWith('consciousness_') && units[id] && units[id].hp>0){
+      units[id].hp = 0;
+    }
+  }
+  
+  // Clear healing tiles
+  if(window._healingTiles){
+    window._healingTiles.clear();
+  }
+  
+  interactionLocked = false;
+  renderAll();
+}
+
+async function showLiratheDialog(){
+  const dialogBox = document.createElement('div');
+  dialogBox.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.95);color:#fff;padding:50px;border-radius:15px;max-width:700px;z-index:10000;font-size:20px;line-height:2.2;box-shadow:0 10px 40px rgba(0,0,0,0.8);';
+  
+  dialogBox.innerHTML = `
+    <div style="text-align:center;">
+      <p style="color:#aaa;font-size:18px;">（Lirathe即将杀掉Karma时，看到了周围血坑中的倒影）</p>
+      <p style="color:#aaa;font-size:18px;margin-top:10px;">（和女孩子没有任何关系的自己）</p>
+      <p style="color:#ff6b6b;margin-top:30px;font-size:22px;">Lirathe：（我在干什么。。。）</p>
+      <p style="color:#ff6b6b;font-size:22px;">Lirathe：（我为什么会变成这样）</p>
+      <p style="color:#ff6b6b;font-size:22px;">Lirathe：（。。。。）</p>
+      <p style="color:#ff6b6b;margin-bottom:35px;font-size:22px;">Lirathe：（抱歉。。）</p>
+      <button id="dialogConfirm" style="padding:12px 40px;font-size:18px;background:#4a90e2;border:none;color:#fff;border-radius:8px;cursor:pointer;box-shadow:0 4px 12px rgba(74,144,226,0.4);">确定</button>
+    </div>
+  `;
+  
+  document.body.appendChild(dialogBox);
+  
+  return new Promise(resolve => {
+    document.getElementById('dialogConfirm').onclick = () => {
+      dialogBox.remove();
+      resolve();
+    };
+  });
+}
+
+function spawnConsciousnessfollower(){
+  const empty = [];
+  for(let r=1;r<=ROWS;r++){
+    for(let c=1;c<=COLS;c++){
+      if(clampCell(r,c) && !getUnitAt(r,c)) empty.push({r,c});
+    }
+  }
+  if(empty.length === 0) return;
+  
+  const pos = empty[Math.floor(Math.random() * empty.length)];
+  const id = 'consciousness_' + Date.now();
+  units[id] = createUnit(id,'意识花苞','enemy',50, pos.r, pos.c, 150,0, 0,0, ['rooted','recovery','limitedAction']);
+  units[id]._lastDamagedRound = -999;
+  ensureStartHand(units[id]);
+  appendLog('意识花苞出现了！');
+  renderAll();
+}
+
+function spawnHealingTile(){
+  const empty = [];
+  for(let r=1;r<=ROWS;r++){
+    for(let c=1;c<=COLS;c++){
+      if(clampCell(r,c) && !getUnitAt(r,c)) empty.push({r,c});
+    }
+  }
+  if(empty.length === 0) return;
+  
+  const pos = empty[Math.floor(Math.random() * empty.length)];
+  // Mark this cell as a healing tile
+  if(!window._healingTiles) window._healingTiles = new Set();
+  window._healingTiles.add(`${pos.r},${pos.c}`);
+  appendLog(`小恢复格子出现在 (${pos.r},${pos.c})！`);
+  renderAll();
+}
+
+function checkHealingTiles(){
+  if(!window._healingTiles) return;
+  
+  for(const id in units){
+    const u = units[id];
+    if(u && u.hp>0 && u.side==='player'){
+      const key = `${u.r},${u.c}`;
+      if(window._healingTiles.has(key)){
+        u.hp = Math.min(u.maxHp, u.hp + 50);
+        u.sp = Math.min(u.maxSp, u.sp + 50);
+        showDamageFloat(u, -50, -50);
+        appendLog(`${u.name} 踩到小恢复格子：恢复50HP/50SP`);
+        window._healingTiles.delete(key);
+        renderAll();
+      }
+    }
+  }
+}
+
 function finishEnemyTurn(){
   clearAIWatchdog();
   processUnitsTurnEnd('enemy');
   roundsPassed += 1;
+  
+  // Round 2: Spawn Adora and Dario phantoms
+  if(roundsPassed === 2 && !units['adora_phantom']){
+    units['adora_phantom'] = createUnit('adora_phantom','Adora（虚影）','player',50, 5, 20, 150,50, 0.5,20, ['calmAnalysis']);
+    units['dario_phantom'] = createUnit('dario_phantom','Dario（虚影）','player',50, 5, 24, 180,50, 0.5,20, []);
+    
+    ensureStartHand(units['adora_phantom']);
+    ensureStartHand(units['dario_phantom']);
+    
+    appendLog('第2回合：Adora和Dario的虚影出现支援Karma！');
+    renderAll();
+  }
+  
+  // Lirathe Phase 2 mechanics
+  const lirathe = units['lirathe'];
+  if(lirathe && lirathe.hp>0 && lirathe._transformed){
+    // Consciousness flower spawning (every 5 rounds)
+    if(!lirathe._stopSpawning){
+      lirathe._consciousnessFlowerRounds = (lirathe._consciousnessFlowerRounds || 0) + 1;
+      if(lirathe._consciousnessFlowerRounds >= 5){
+        lirathe._consciousnessFlowerRounds = 0;
+        spawnConsciousnessfollower();
+      }
+      
+      // Healing tile spawning (every 10 rounds)
+      lirathe._healingTileRounds = (lirathe._healingTileRounds || 0) + 1;
+      if(lirathe._healingTileRounds >= 10){
+        lirathe._healingTileRounds = 0;
+        spawnHealingTile();
+      }
+    }
+  }
+  
   applyEndOfRoundPassives();
 
   updateStepsUI();
@@ -5086,7 +5753,15 @@ async function enemyTurn(){
 
 // —— 胜负/渲染循环 ——
 function checkWin(){
-  const enemiesAlive = Object.values(units).some(u=>u.side==='enemy' && u.hp>0);
+  const lirathe = units['lirathe'];
+  
+  // Lirathe's permanent stun counts as victory
+  if(lirathe && lirathe.hp>0 && lirathe._permanentStun){
+    showAccomplish();
+    return true;
+  }
+  
+  const enemiesAlive = Object.values(units).some(u=>u.side==='enemy' && u.hp>0 && !u._permanentStun);
   const playersAlive = Object.values(units).some(u=>u.side==='player' && u.hp>0);
   if(!enemiesAlive){ showAccomplish(); return true; }
   if(!playersAlive){ 
