@@ -4789,10 +4789,14 @@ function summarizeNegatives(u){
   if(u.status.dependStacks>0) parts.push(`依赖x${u.status.dependStacks}`);
   if(u.status.agileStacks>0) parts.push(`灵活x${u.status.agileStacks}`);
   if(u.status.affirmationStacks>0) parts.push(`肯定x${u.status.affirmationStacks}`);
+  if(u.status.seenStacks>0) parts.push(`看见x${u.status.seenStacks}`);
+  if(u.status.exposedStacks>0) parts.push(`暴露x${u.status.exposedStacks}`);
+  if(u.status.immobilizedStacks>0) parts.push(`禁锢x${u.status.immobilizedStacks}`);
   if(u.status.mockeryStacks>0) parts.push(`戏谑x${u.status.mockeryStacks}`);
   if(u.status.violenceStacks>0) parts.push(`暴力x${u.status.violenceStacks}`);
   if(u._spBroken) parts.push(`SP崩溃`);
   if(u._spCrashVuln) parts.push('SP崩溃易伤');
+  if(u._highGround) parts.push('高处');
   if(hazMarkedTargetId && u.id === hazMarkedTargetId) parts.push('猎杀标记');
   if(u._stanceType && u._stanceTurns>0){
     parts.push(u._stanceType==='defense' ? `防御姿态(${u._stanceTurns})` : `反伤姿态(${u._stanceTurns})`);
@@ -4864,7 +4868,7 @@ function tryLiratheClimbing(u){
       // Found a wall, climb it!
       u._highGround = true;
       appendLog(`${u.name} 触发"攀爬"被动：爬上墙壁进入高处状态！`);
-      updateStatusStacks(u,'_highGround',1,{label:'高处',type:'buff'});
+      showStatusFloat(u,'高处',{type:'buff'});
       return true;
     }
   }
