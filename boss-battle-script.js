@@ -164,6 +164,8 @@ function createUnit(id, name, side, level, r, c, maxHp, maxSp, restoreOnZeroPct,
       affirmationStacks: 0,      // "肯定"Buff 层数（免疫一次SP伤害，多阶段攻击全阶段免疫，消耗一层）
       seenStacks: 0,             // "看见"Buff 层数（让Lirathe看得到该单位，下回合结束后减少一层）
       exposedStacks: 0,          // "暴露"Buff 层数（移动超过5格时触发，让Lirathe看得到该单位）
+      mockeryStacks: 0,          // "戏谑"Buff 层数（下一次攻击命中后，给自己上2层灵活和1层暴力，消耗一层戏谑）
+      violenceStacks: 0,         // "暴力"Buff 层数（增加攻击伤害）
     },
     dmgDone: 0,
     skillPool: [],
@@ -1940,6 +1942,13 @@ function calcOutgoingDamage(attacker, baseDmg, target, skillName){
 
   if(attacker.team==='seven' && target && hazMarkedTargetId && target.id===hazMarkedTargetId){ dmg = Math.round(dmg * 1.15); }
   if(attacker.id==='tusk' && (attacker.tuskRageStacks||0)>0){ dmg += 5*attacker.tuskRageStacks; appendLog(`Tusk 猛牛之力：额外 +${5*attacker.tuskRageStacks} 伤害`); attacker.tuskRageStacks = 0; }
+  
+  // Violence Buff: +10% damage per stack
+  if(attacker.status && attacker.status.violenceStacks > 0){
+    const violenceMultiplier = 1 + (attacker.status.violenceStacks * 0.10);
+    dmg = Math.round(dmg * violenceMultiplier);
+  }
+  
   return dmg;
 }
 function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
@@ -2181,6 +2190,16 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
           appendLog(`${src.name} 的攻击触发"绽放（红色）"被动：${u.name} +1 层血色花蕾 (${currentBuds + 1}/7)`);
         }
       }
+      
+      // Mockery Buff: If attacker has mockery stacks and hit landed, give self +2 agile and +1 violence, consume 1 mockery
+      if(src.status && src.status.mockeryStacks > 0 && (finalHp > 0 || finalSp > 0)){
+        const currentAgile = src.status.agileStacks || 0;
+        const currentViolence = src.status.violenceStacks || 0;
+        updateStatusStacks(src, "agileStacks", currentAgile + 2, { label: "灵活", type: "buff" });
+        updateStatusStacks(src, "violenceStacks", currentViolence + 1, { label: "暴力", type: "buff" });
+        updateStatusStacks(src, "mockeryStacks", src.status.mockeryStacks - 1, { label: "戏谑", type: "buff" });
+        appendLog(`${src.name} 的"戏谑"触发：+2 灵活层数，+1 暴力层数（消耗1层戏谑）`);
+      }
     }
   }
 
@@ -2237,8 +2256,40 @@ function handleUnitDeath(u, source){
     u.dealtStart = false;
     ensureStartHand(u);
     
+    // Move Lirathe to position (4,1) and push away any units there
+    const targetR = 4;
+    const targetC = 1;
+    
+    // Check if position is valid for 2x2 unit and push away any units occupying it
+    const cellsToClear = [
+      {r: targetR, c: targetC},
+      {r: targetR + 1, c: targetC},
+      {r: targetR, c: targetC + 1},
+      {r: targetR + 1, c: targetC + 1}
+    ];
+    
+    for(const cell of cellsToClear){
+      const occupant = getUnitAt(cell.r, cell.c);
+      if(occupant && occupant !== u){
+        // Push away the occupant to an adjacent free cell
+        const adjacent = range_adjacent(occupant);
+        for(const pos of adjacent){
+          if(!getUnitAt(pos.r, pos.c)){
+            occupant.r = pos.r;
+            occupant.c = pos.c;
+            appendLog(`${occupant.name} 被Lirathe的影之形态挤开到 (${pos.r},${pos.c})`);
+            break;
+          }
+        }
+      }
+    }
+    
+    u.r = targetR;
+    u.c = targetC;
+    
     appendLog('=====================');
     appendLog('Lirathe 进入第二阶段！');
+    appendLog(`Lirathe 移动到影之形态位置 (${targetR},${targetC})！`);
     appendLog('变身后的Lirathe失去了视力，但听觉敏锐！');
     appendLog('Lirathe 现在是2x2大体型，站在高处！');
     appendLog('=====================');
@@ -5957,14 +6008,33 @@ function buildSkillCandidates(en){
     
     if(!hasVisibleTargets){
       // No visible targets - Lirathe attacks randomly
-      // Pick random skills and random directions
+      // Pick random skills and random directions, but avoid directions that go outside map boundaries
       for(const sk of skillset){
         if(sk.cost>enemySteps) continue;
-        const dirs = Object.keys(DIRS);
-        const randomDir = dirs[Math.floor(Math.random() * dirs.length)];
+        
+        // Filter valid directions based on Lirathe's position
+        // If Lirathe is at the edge, don't attack in directions that would go outside the map
+        const allDirs = Object.keys(DIRS);
+        const validDirs = allDirs.filter(dir => {
+          // Check if moving in this direction would be within map bounds
+          const d = DIRS[dir];
+          const checkR = en.r + d.dr;
+          const checkC = en.c + d.dc;
+          
+          // For 2x2 unit, check if all four corners would be valid
+          if(en.size === 2){
+            return checkR >= 1 && checkR + 1 <= ROWS && checkC >= 1 && checkC + 1 <= COLS;
+          } else {
+            return checkR >= 1 && checkR <= ROWS && checkC >= 1 && checkC <= COLS;
+          }
+        });
+        
+        if(validDirs.length === 0) continue; // No valid directions, skip this skill
+        
+        const randomDir = validDirs[Math.floor(Math.random() * validDirs.length)];
         candidates.push({sk, dir:randomDir, score: 5, blind: true}); // Low score, random direction
       }
-      appendLog(`${en.name} 失去视力：随机释放技能！`);
+      appendLog(`${en.name} 失去视力：随机释放技能（避开地图边界）！`);
       candidates.sort((a,b)=> b.score-a.score);
       return candidates;
     }
@@ -6171,9 +6241,29 @@ async function exhaustEnemySteps(){
       if(!en.dealtStart) ensureStartHand(en);
       if(en.id==='neyla' && en.oppression) ensureNeylaEndShadowGuarantee(en);
       
-      // Lirathe climbing passive: Try to climb if not on high ground
-      if(en.id === 'lirathe' && en._transformed && !en._highGround){
-        if(tryLiratheClimbing(en)){
+      // Lirathe climbing passive: Manage high ground based on target visibility
+      if(en.id === 'lirathe' && en._transformed && en.passives.includes('liratheClimbing')){
+        // Check if there are visible targets
+        let hasVisibleTargets = false;
+        for(const id in units){
+          const u = units[id];
+          if(u && u.hp > 0 && u.side === 'player' && canLiratheSeeTarget(en, u)){
+            hasVisibleTargets = true;
+            break;
+          }
+        }
+        
+        if(hasVisibleTargets && !en._highGround){
+          // Try to climb when there are visible targets
+          if(tryLiratheClimbing(en)){
+            progressedThisRound = true;
+            await aiAwait(300);
+          }
+        } else if(!hasVisibleTargets && en._highGround){
+          // Descend when no visible targets (return to random mode)
+          en._highGround = false;
+          appendLog(`${en.name} 失去视线：从高处下来，回到随机攻击模式`);
+          showStatusFloat(en,'下地',{type:'info'});
           progressedThisRound = true;
           await aiAwait(300);
         }
