@@ -5151,6 +5151,12 @@ function processUnitsTurnStart(side){
     }
   }
 
+  // Check healing and weakness tiles once per turn for all player units
+  if(side==='player'){
+    checkHealingTiles();
+    checkWeaknessTiles();
+  }
+
   for(const id in units){
     const u=units[id];
     if(u.side!==side || u.hp<=0) continue;
@@ -5168,11 +5174,6 @@ function processUnitsTurnStart(side){
 
     // 姿态：回合开始时结算SP恢复与持续回合-1；结束时主动清除
     
-    // Check healing tiles for player units
-    if(side==='player'){
-      checkHealingTiles();
-      checkWeaknessTiles();
-    }
     if(u._stanceType && u._stanceTurns>0){
       if(u._stanceSpPerTurn>0){
         const beforeSP = u.sp;
