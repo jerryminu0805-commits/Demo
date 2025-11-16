@@ -1901,7 +1901,7 @@ function hasDeepBreathPassive(attacker){
 }
 function hasBloomInAnyPlayerPool(){
   // Check if any player has the Bloom skill in their pool
-  for(const id of ['adora','dario','karma']){
+  for(const id of ['adora','dario','karma','adora_phantom','dario_phantom']){
     const u = units[id];
     if(!u || u.hp<=0) continue;
     const pool = u.skillPool || [];
@@ -2514,14 +2514,24 @@ function adoraBloom(u){
     for(const id in units){
       const ally = units[id];
       if(!ally || ally.hp <= 0 || ally.side !== u.side) continue;
-      if(ally.id !== u.id && mdist(u, ally) > rangeLimit) continue;
-
-      let hpHeal = totalLayersDetonated * 3;
-      let spHeal = totalLayersDetonated * 3;
+      
+      let hpHeal = 0;
+      let spHeal = 0;
+      
+      // Adora herself: 5 HP/SP per layer
       if(ally.id === u.id){
-        hpHeal += totalLayersDetonated * 5;
-        spHeal += totalLayersDetonated * 5;
+        hpHeal = totalLayersDetonated * 5;
+        spHeal = totalLayersDetonated * 5;
       }
+      // Other allies within 5 cells: 3 HP/SP per layer
+      else if(mdist(u, ally) <= rangeLimit){
+        hpHeal = totalLayersDetonated * 3;
+        spHeal = totalLayersDetonated * 3;
+      }
+      else {
+        continue; // Skip allies too far away
+      }
+      
       if(hpHeal <= 0 && spHeal <= 0) continue;
 
       const prevHp = ally.hp;
