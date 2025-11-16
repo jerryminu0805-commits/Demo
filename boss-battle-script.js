@@ -1917,7 +1917,7 @@ function calcOutgoingDamage(attacker, baseDmg, target, skillName){
     dmg = Math.round(dmg * (1 + lostRatio * 0.5));
   }
   if(attacker.id==='karma' && skillName==='沙包大的拳头' && (attacker.consecAttacks||0)>=1){ dmg = Math.round(dmg*1.5); }
-  if(attacker.id==='adora' && skillName==='短匕轻挥' && target){ dmg = Math.round(dmg * backstabMultiplier(attacker,target)); }
+  if((attacker.id==='adora' || attacker.id==='adora_phantom') && skillName==='短匕轻挥' && target){ dmg = Math.round(dmg * backstabMultiplier(attacker,target)); }
   if(attacker.team==='seven'){ dmg = Math.max(0, dmg - 5); }
   if(attacker.id==='haz' && attacker.hp <= attacker.maxHp/2){ dmg = Math.round(dmg * 1.3); }
   if(attacker.id==='haz' && attacker._comeback) dmg = Math.round(dmg * 1.10);
@@ -2108,6 +2108,21 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
       if(src && src.hp>0){
         appendLog(`${u.name} 的反伤姿态：反弹 ${refl} 伤害给 ${src.name}`);
         damageUnit(src.id, refl, 0, `反伤姿态反弹自 ${u.name}`, u.id, {...opts, _reflected:true, ignoreCover:true, ignoreToughBody:true});
+      }
+    }
+  }
+  
+  // Dario 反击 passive: 50% chance to counter with 机械爪击
+  if(sourceId && (u.id==='dario' || u.id==='dario_phantom') && u.passives.includes('counterattack') && !opts._counterattack){
+    if(Math.random() < 0.5){
+      const src = units[sourceId];
+      if(src && src.hp>0 && src.side!==u.side){
+        appendLog(`${u.name} 的"反击"触发：反击一次机械爪击`);
+        setTimeout(()=>{
+          if(src.hp > 0){
+            darioClaw(u, src);
+          }
+        }, 300);
       }
     }
   }
@@ -4450,6 +4465,28 @@ function buildGrid(){
       cell.className = 'cell';
       if(isVoidCell(r,c)) cell.classList.add('void');
       if(isCoverCell(r,c)) cell.classList.add('cover');
+      
+      // Add visual indicator for healing tiles
+      const tileKey = `${r},${c}`;
+      if(window._healingTiles && window._healingTiles.has(tileKey)){
+        cell.classList.add('healing-tile');
+        const healIcon = document.createElement('div');
+        healIcon.className = 'tile-icon';
+        healIcon.textContent = '✚';
+        healIcon.style.cssText = 'position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:32px; color:#52c41a; pointer-events:none; text-shadow:0 0 8px #52c41a;';
+        cell.appendChild(healIcon);
+      }
+      
+      // Add visual indicator for weakness tiles
+      if(window._weaknessTiles && window._weaknessTiles.has(tileKey)){
+        cell.classList.add('weakness-tile');
+        const weakIcon = document.createElement('div');
+        weakIcon.className = 'tile-icon';
+        weakIcon.textContent = '⚠';
+        weakIcon.style.cssText = 'position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:32px; color:#ff4d4f; pointer-events:none; text-shadow:0 0 8px #ff4d4f;';
+        cell.appendChild(weakIcon);
+      }
+      
       cell.dataset.r=r; cell.dataset.c=c;
       const coord=document.createElement('div'); coord.className='coord'; coord.textContent=`${r},${c}`; cell.appendChild(coord);
 
@@ -5093,7 +5130,12 @@ function processUnitsTurnStart(side){
     }
 
     if(u.spPendingRestore!=null){
-      const val = Math.min(u.maxSp, u.spPendingRestore);
+      let val = Math.min(u.maxSp, u.spPendingRestore);
+      // Dario quickAdjust passive: Additional 25% SP restore
+      if((u.id==='dario' || u.id==='dario_phantom') && u.passives.includes('quickAdjust')){
+        val = Math.min(u.maxSp, Math.floor(val * 1.25));
+        appendLog(`${u.name} 的"快速调整"触发：额外恢复 25% SP`);
+      }
       u.sp = val; syncSpBroken(u); u.spPendingRestore = null;
       appendLog(`${u.name} 的 SP 自动恢复至 ${val}`); showGainFloat(u,0,val);
       if(u.id==='haz'){
