@@ -162,6 +162,8 @@ function createUnit(id, name, side, level, r, c, maxHp, maxSp, restoreOnZeroPct,
       dependStacks: 0,           // “依赖”Buff 层数（下一次攻击真实伤害，结算后清空自身SP）
       agileStacks: 0,            // "灵活"Buff 层数（让敌方30%几率miss，miss消耗一层）
       affirmationStacks: 0,      // "肯定"Buff 层数（免疫一次SP伤害，多阶段攻击全阶段免疫，消耗一层）
+      seenStacks: 0,             // "看见"Buff 层数（让Lirathe看得到该单位，下回合结束后减少一层）
+      exposedStacks: 0,          // "暴露"Buff 层数（移动超过5格时触发，让Lirathe看得到该单位）
     },
     dmgDone: 0,
     skillPool: [],
@@ -192,6 +194,7 @@ function createUnit(id, name, side, level, r, c, maxHp, maxSp, restoreOnZeroPct,
     _reflectPct: 0,           // 0.3 表示反弹30%受到的HP伤害
 
     _fortressTurns: 0, // 兼容旧逻辑（已由姿态系统替代）
+    _moveDistanceThisTurn: 0, // Track movement distance for "暴露" passive
   };
 }
 const units = {};
@@ -1921,6 +1924,12 @@ function calcOutgoingDamage(attacker, baseDmg, target, skillName){
   if(attacker.team==='seven'){ dmg = Math.max(0, dmg - 5); }
   if(attacker.id==='haz' && attacker.hp <= attacker.maxHp/2){ dmg = Math.round(dmg * 1.3); }
   if(attacker.id==='haz' && attacker._comeback) dmg = Math.round(dmg * 1.10);
+  
+  // Lirathe "丧失理智" passive: +25% damage when active
+  if(attacker.id==='lirathe' && attacker._lossSanityActive){
+    dmg = Math.round(dmg * 1.25);
+    attacker._lossSanityActive = false; // Clear flag after use
+  }
 
   if(hasDeepBreathPassive(attacker)){
     dmg = Math.round(dmg * 1.10);
@@ -2018,6 +2027,12 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
     hpDmg = Math.round(hpDmg * 0.6);
     spDmg = Math.round(spDmg * 0.6);
   }
+  // Lirathe "退去凡躯" passive: 25% damage reduction
+  if(!trueDamage && u.id==='lirathe' && u._transformed && u.passives.includes('liratheShedMortal')){
+    hpDmg = Math.round(hpDmg * 0.75);
+    spDmg = Math.round(spDmg * 0.75);
+  }
+  
   if(!trueDamage && u.passives.includes('toughBody') && !opts.ignoreToughBody){
     hpDmg = Math.round(hpDmg * 0.75);
   }
@@ -2085,6 +2100,16 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
   }
   showDamageFloat(u, finalHp, finalSp);
   pulseCell(u.r, u.c);
+  
+  // Lirathe "退去凡躯" passive: 20% chance to heal 5 HP when taking damage
+  if(u.id==='lirathe' && u._transformed && u.passives.includes('liratheShedMortal') && finalHp > 0 && u.hp > 0){
+    if(Math.random() < 0.20){
+      u.hp = Math.min(u.maxHp, u.hp + 5);
+      appendLog(`${u.name} 的"退去凡躯"触发：恢复5HP`);
+      showGainFloat(u, 5, 0);
+    }
+  }
+  
   if(died){
     showDeathFx(u);
     handleUnitDeath(u, source);
@@ -2189,6 +2214,13 @@ function handleUnitDeath(u, source){
     u.spZeroHpPenalty = 20;
     u.spCrashThreshold = -80; // Changed from 0 to -80
     u._highGround = true; // Lirathe is on high ground in phase 2
+    
+    // Add Phase 2 passives
+    u.passives.push('liratheDarkness');      // 一片黑暗
+    u.passives.push('liratheClimbing');      // 攀爬
+    u.passives.push('lirathePredicament');   // 困境
+    u.passives.push('liratheShedMortal');    // 退去凡躯
+    u.passives.push('liratheLossSanity');    // 丧失理智
     
     // Clear skill pool, force redraw Phase 2 skills
     u.skillPool = [];
@@ -2659,6 +2691,36 @@ function unitActed(u){
     }
     u._dependUnleash = false;
     u._dependTarget = null; // Clear the target reference
+  }
+  
+  // Lirathe "困境" passive: 25% chance to summon invisible web
+  if(u.id==='lirathe' && u._transformed && u.passives.includes('lirathePredicament')){
+    if(Math.random() < 0.25){
+      // Find empty adjacent cell
+      const adj = range_adjacent(u).filter(p => !getUnitAt(p.r, p.c));
+      if(adj.length > 0){
+        const pos = adj[Math.floor(Math.random() * adj.length)];
+        if(!window._spiderWebs) window._spiderWebs = new Set();
+        window._spiderWebs.add(`${pos.r},${pos.c}`);
+        appendLog(`${u.name} 的"困境"触发：在(${pos.r},${pos.c})召唤蛛网（隐身）`);
+      }
+    }
+  }
+  
+  // Lirathe "丧失理智" passive: 25% chance for +25% damage but lose 25HP+10SP
+  if(u.id==='lirathe' && u._transformed && u.passives.includes('liratheLossSanity')){
+    if(Math.random() < 0.25){
+      u._lossSanityActive = true;
+      appendLog(`${u.name} 的"丧失理智"触发：下次攻击伤害+25%，但自损25HP+10SP`);
+      // Apply self damage
+      const hpLoss = 25;
+      const spLoss = 10;
+      u.hp = Math.max(1, u.hp - hpLoss); // Don't die from passive
+      const minSp = u.minSp !== undefined ? u.minSp : 0;
+      u.sp = Math.max(minSp, u.sp - spLoss);
+      showDamageFloat(u, hpLoss, spLoss);
+      requireFullRender = true;
+    }
   }
 
   if(requireFullRender){
@@ -3629,9 +3691,8 @@ async function lirathe_WhereAreYou(u){
       tu.status.corrosionStacks += 1;
       updateStatusStacks(tu,'corrosionStacks',tu.status.corrosionStacks,{label:'腐蚀',type:'debuff'});
       // Add "seen" buff for Lirathe to see the unit
-      if(!tu.status.seenTurns) tu.status.seenTurns = 0;
-      tu.status.seenTurns = 1;
-      updateStatusStacks(tu,'seenTurns',tu.status.seenTurns,{label:'看见',type:'debuff'});
+      tu.status.seenStacks = 1;
+      updateStatusStacks(tu,'seenStacks',tu.status.seenStacks,{label:'看见',type:'debuff'});
       seen.add(tu.id);
     }
   }
@@ -4784,8 +4845,30 @@ function canUnitMove(u){
   if(!u) return false;
   if(u._stanceType && u._stanceTurns>0) return false; // 姿态期间禁止移动
   if(u.passives && u.passives.includes('rooted')) return false; // 根深蒂固被动：无法移动
-  if(u.id === 'lirathe' && u._transformed) return false; // Lirathe Phase 2: 失去普通移动能力
+  if(u.status && u.status.immobilizedStacks > 0) return false; // 禁锢：无法移动
+  // Lirathe Phase 2: 失去普通移动能力 (except when climbing)
+  if(u.id === 'lirathe' && u._transformed && u.passives.includes('liratheShedMortal')) return false;
   return true;
+}
+
+// Helper function to check if Lirathe should try to climb
+function tryLiratheClimbing(u){
+  if(!u || u.id !== 'lirathe' || !u._transformed) return false;
+  if(!u.passives.includes('liratheClimbing')) return false;
+  if(u._highGround) return false; // Already on high ground
+  
+  // Check for adjacent walls (cover cells)
+  const adj = range_adjacent(u);
+  for(const pos of adj){
+    if(isCoverCell(pos.r, pos.c)){
+      // Found a wall, climb it!
+      u._highGround = true;
+      appendLog(`${u.name} 触发"攀爬"被动：爬上墙壁进入高处状态！`);
+      updateStatusStacks(u,'_highGround',1,{label:'高处',type:'buff'});
+      return true;
+    }
+  }
+  return false;
 }
 function showDistanceDisplay(r, c, distance){
   clearDistanceDisplay();
@@ -4947,7 +5030,21 @@ function onCellClick(r,c){
 
   const moveDir = cardinalDirFromDelta(r - sel.r, c - sel.c);
   setUnitFacing(sel, moveDir);
+  
+  // Track movement distance for "暴露" passive
+  const moveDist = Math.abs(r - sel.r) + Math.abs(c - sel.c);
+  if(!sel._moveDistanceThisTurn) sel._moveDistanceThisTurn = 0;
+  sel._moveDistanceThisTurn += moveDist;
+  
   sel.r=r; sel.c=c;
+  
+  // Check tiles immediately after movement
+  if(sel.side === 'player'){
+    checkHealingTilesForUnit(sel);
+    checkWeaknessTilesForUnit(sel);
+    checkSpiderWebsForUnit(sel);
+  }
+  
   if(sel.side==='player') playerSteps=Math.max(0, playerSteps-1); else enemySteps=Math.max(0, enemySteps-1);
   appendLog(`${sel.name} 移动到 (${r},${c})`);
   if(sel.side!=='player') cameraFocusOnCell(r,c);
@@ -5161,6 +5258,12 @@ function processUnitsTurnStart(side){
     const u=units[id];
     if(u.side!==side || u.hp<=0) continue;
 
+    // Reset movement distance tracking at turn start
+    u._moveDistanceThisTurn = 0;
+    
+    // Decrease "看见" stacks at turn end (handled in processUnitsTurnEnd)
+    // Decrease "暴露" stacks at turn end (handled in processUnitsTurnEnd)
+    
     u.actionsThisTurn = 0;
     u.turnsStarted = (u.turnsStarted||0) + 1;
     u._tutorialSpImmuneUsed = false;
@@ -5270,6 +5373,34 @@ function processUnitsTurnStart(side){
   checkHazComebackStatus();
 }
 function processUnitsTurnEnd(side){
+  // Check for "暴露" (exposed) status based on movement distance
+  const lirathe = units['lirathe'];
+  if(lirathe && lirathe.hp>0 && lirathe._transformed && lirathe.passives.includes('liratheDarkness')){
+    for(const id in units){
+      const u = units[id];
+      if(u.side !== side || u.hp <= 0) continue;
+      if(u.side === 'player' && u._moveDistanceThisTurn > 5){
+        // Unit moved more than 5 cells, apply "暴露"
+        u.status.exposedStacks = 1; // Only 1 stack, not stackable
+        updateStatusStacks(u,'exposedStacks',1,{label:'暴露',type:'debuff'});
+        appendLog(`${u.name} 移动超过5格，被Lirathe标记为"暴露"！`);
+      }
+    }
+  }
+  
+  // Decrease "看见" stacks at turn end
+  for(const id in units){
+    const u = units[id];
+    if(u.side !== side || u.hp <= 0) continue;
+    if(u.status.seenStacks && u.status.seenStacks > 0){
+      u.status.seenStacks = Math.max(0, u.status.seenStacks - 1);
+      updateStatusStacks(u,'seenStacks',u.status.seenStacks,{label:'看见',type:'debuff'});
+      if(u.status.seenStacks === 0){
+        appendLog(`${u.name} 的"看见"状态消失`);
+      }
+    }
+  }
+  
   for(const id in units){
     const u=units[id];
     if(u.side!==side) continue;
@@ -5293,6 +5424,14 @@ function processUnitsTurnEnd(side){
       if(u.id === 'lirathe' && next === 0 && u._weaknessVulnerable){
         u._weaknessVulnerable = false;
         appendLog(`${u.name} 恢复正常`);
+      }
+    }
+    // Decrease immobilized stacks
+    if(u.status.immobilizedStacks && u.status.immobilizedStacks > 0){
+      u.status.immobilizedStacks = Math.max(0, u.status.immobilizedStacks - 1);
+      updateStatusStacks(u,'immobilizedStacks',u.status.immobilizedStacks,{label:'禁锢',type:'debuff'});
+      if(u.status.immobilizedStacks === 0){
+        appendLog(`${u.name} 的"禁锢"状态消失`);
       }
     }
   }
@@ -5471,21 +5610,28 @@ function spawnHealingTile(){
   renderAll();
 }
 
+function checkHealingTilesForUnit(u){
+  if(!window._healingTiles) return;
+  if(!u || u.hp<=0 || u.side!=='player') return;
+  
+  const key = `${u.r},${u.c}`;
+  if(window._healingTiles.has(key)){
+    u.hp = Math.min(u.maxHp, u.hp + 50);
+    u.sp = Math.min(u.maxSp, u.sp + 50);
+    showDamageFloat(u, -50, -50);
+    appendLog(`${u.name} 踩到小恢复格子：恢复50HP/50SP`);
+    window._healingTiles.delete(key);
+    renderAll();
+  }
+}
+
 function checkHealingTiles(){
   if(!window._healingTiles) return;
   
   for(const id in units){
     const u = units[id];
     if(u && u.hp>0 && u.side==='player'){
-      const key = `${u.r},${u.c}`;
-      if(window._healingTiles.has(key)){
-        u.hp = Math.min(u.maxHp, u.hp + 50);
-        u.sp = Math.min(u.maxSp, u.sp + 50);
-        showDamageFloat(u, -50, -50);
-        appendLog(`${u.name} 踩到小恢复格子：恢复50HP/50SP`);
-        window._healingTiles.delete(key);
-        renderAll();
-      }
+      checkHealingTilesForUnit(u);
     }
   }
 }
@@ -5497,6 +5643,40 @@ function createWeaknessTile(r, c){
   renderAll();
 }
 
+function checkWeaknessTilesForUnit(u){
+  if(!window._weaknessTiles) return;
+  const lirathe = units['lirathe'];
+  if(!lirathe || lirathe.hp <= 0 || !lirathe._transformed) return;
+  if(!u || u.hp<=0 || u.side!=='player') return;
+  
+  const key = `${u.r},${u.c}`;
+  if(window._weaknessTiles.has(key) && lirathe._highGround){
+    // Lirathe falls down
+    lirathe._highGround = false;
+    addStatusStacks(lirathe, 'stunned', 1, {label:'眩晕', type:'debuff'});
+    lirathe._weaknessVulnerable = true; // Take 50% more damage
+    appendLog(`${u.name} 踩到软肋格子：Lirathe 从高处掉落并眩晕！`);
+    window._weaknessTiles.delete(key);
+    renderAll();
+  }
+}
+
+function checkSpiderWebsForUnit(u){
+  if(!window._spiderWebs) return;
+  if(!u || u.hp<=0 || u.side!=='player') return;
+  
+  const key = `${u.r},${u.c}`;
+  if(window._spiderWebs.has(key)){
+    // Apply "禁锢" status (cannot move but can use skills)
+    if(!u.status.immobilizedStacks) u.status.immobilizedStacks = 0;
+    u.status.immobilizedStacks += 1;
+    updateStatusStacks(u,'immobilizedStacks',u.status.immobilizedStacks,{label:'禁锢',type:'debuff'});
+    appendLog(`${u.name} 踩到蛛网：获得1层"禁锢"（无法移动但可用技能）`);
+    window._spiderWebs.delete(key);
+    renderAll();
+  }
+}
+
 function checkWeaknessTiles(){
   if(!window._weaknessTiles) return;
   const lirathe = units['lirathe'];
@@ -5505,16 +5685,7 @@ function checkWeaknessTiles(){
   for(const id in units){
     const u = units[id];
     if(u && u.hp>0 && u.side==='player'){
-      const key = `${u.r},${u.c}`;
-      if(window._weaknessTiles.has(key) && lirathe._highGround){
-        // Lirathe falls down
-        lirathe._highGround = false;
-        addStatusStacks(lirathe, 'stunned', 1, {label:'眩晕', type:'debuff'});
-        lirathe._weaknessVulnerable = true; // Take 50% more damage
-        appendLog(`${u.name} 踩到软肋格子：Lirathe 从高处掉落并眩晕！`);
-        window._weaknessTiles.delete(key);
-        renderAll();
-      }
+      checkWeaknessTilesForUnit(u);
     }
   }
 }
@@ -5871,6 +6042,14 @@ async function exhaustEnemySteps(){
       if(en.status.stunned){ aiLog(en,'眩晕跳过'); continue; }
       if(!en.dealtStart) ensureStartHand(en);
       if(en.id==='neyla' && en.oppression) ensureNeylaEndShadowGuarantee(en);
+      
+      // Lirathe climbing passive: Try to climb if not on high ground
+      if(en.id === 'lirathe' && en._transformed && !en._highGround){
+        if(tryLiratheClimbing(en)){
+          progressedThisRound = true;
+          await aiAwait(300);
+        }
+      }
 
       // 1) 尝试技能
       let didAct = false;
