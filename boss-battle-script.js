@@ -1848,6 +1848,10 @@ function applyStunOrStack(target, layers=1, {reason='', bypass=false}={}){
 }
 function handleSpCrashIfNeeded(u){
   if(!u || u.hp<=0) return;
+  
+  // Skip SP crash handling for units with maxSp=0 (like consciousness flower)
+  if(u.maxSp === 0) return;
+  
   const spCrashThreshold = u.spCrashThreshold !== undefined ? u.spCrashThreshold : 0;
   if(u.sp <= spCrashThreshold && !u._spBroken){
     u._spBroken = true;
@@ -3664,9 +3668,28 @@ async function lirathe_SplashBlade(u, desc){
     }
   }
   
-  // Stage 3: Charge and pierce first target
+  // Stage 3: Charge to first target and pierce
   if(firstTarget && firstTarget.hp>0){
     await telegraphThenImpact([{r:firstTarget.r,c:firstTarget.c}]);
+    
+    // Move to adjacent position in front of the target
+    const adj = range_adjacent(firstTarget);
+    let moved = false;
+    for(const pos of adj){
+      if(!getUnitAt(pos.r, pos.c)){
+        u.r = pos.r;
+        u.c = pos.c;
+        setUnitFacing(u, pos.dir);
+        appendLog(`${u.name} 冲到 ${firstTarget.name} 面前`);
+        renderAll();
+        moved = true;
+        break;
+      }
+    }
+    if(!moved){
+      appendLog(`${u.name} 无法冲到 ${firstTarget.name} 面前（周围无空位）`);
+    }
+    
     damageUnit(firstTarget.id, 5, 0, `${u.name} 飞溅刀光阶段3贯穿 ${firstTarget.name}`, u.id, {skillName:'飞溅刀光'});
     if(!firstTarget.status.bladeLightStacks) firstTarget.status.bladeLightStacks = 0;
     firstTarget.status.bladeLightStacks += 1;
@@ -3693,9 +3716,9 @@ async function lirathe_DontRun(u, desc){
     damageUnit(firstTarget.id, 0, 15, `${u.name} 别跑蛛网 ${firstTarget.name}`, u.id, {skillName:'别跑'});
     // 50% chance to immobilize
     if(Math.random() < 0.5){
-      if(!firstTarget.status.immobilizedTurns) firstTarget.status.immobilizedTurns = 0;
-      firstTarget.status.immobilizedTurns += 1;
-      updateStatusStacks(firstTarget,'immobilizedTurns',firstTarget.status.immobilizedTurns,{label:'禁锢',type:'debuff'});
+      if(!firstTarget.status.immobilizedStacks) firstTarget.status.immobilizedStacks = 0;
+      firstTarget.status.immobilizedStacks += 1;
+      updateStatusStacks(firstTarget,'immobilizedStacks',firstTarget.status.immobilizedStacks,{label:'禁锢',type:'debuff'});
       appendLog(`${firstTarget.name} 被禁锢（下回合无法移动）`);
     }
   } else {
@@ -3819,6 +3842,15 @@ async function lirathe_CantFindWay(u){
     setUnitFacing(u, dir);
     const line = range_line(u,dir);
     await telegraphThenImpact(line);
+    
+    // Move to the end of the line (last valid cell in this direction)
+    if(line.length > 0){
+      const endPos = line[line.length - 1];
+      u.r = endPos.r;
+      u.c = endPos.c;
+      appendLog(`${u.name} 冲到 ${dir} 方向的尽头 (${endPos.r},${endPos.c})`);
+      renderAll();
+    }
     
     const seen=new Set();
     for(const c of line){
@@ -4732,11 +4764,22 @@ function placeUnits(){
     });
 
     const hpPct = Math.max(0, Math.min(100, (u.hp/u.maxHp*100)||0));
-    const spPct = Math.max(0, Math.min(100, (u.maxSp ? (u.sp/u.maxSp*100) : 0)));
+    
+    // Handle negative SP for units like Lirathe Phase 2 (SP from -80 to 0)
+    let spPct = 0;
+    let spBarColor = '#40a9ff'; // Default blue
+    if(u.maxSp > 0){
+      spPct = Math.max(0, Math.min(100, (u.sp/u.maxSp*100)));
+    } else if(u.minSp !== undefined && u.minSp < 0 && u.sp < 0){
+      // Negative SP bar: calculate percentage from minSp to 0
+      spPct = Math.max(0, Math.min(100, ((u.sp - u.minSp) / (0 - u.minSp) * 100)));
+      spBarColor = '#9254de'; // Purple for negative SP
+    }
+    
     div.innerHTML = `
       <div>${u.name}</div>
       <div class="hpbar"><div class="hpfill" style="width:${hpPct}%"></div></div>
-      <div class="spbar"><div class="spfill" style="width:${spPct}%"></div></div>
+      <div class="spbar"><div class="spfill" style="width:${spPct}%; background:${spBarColor};"></div></div>
     `;
     const facingArrow=document.createElement('div');
     facingArrow.className='facing-arrow';
@@ -4790,12 +4833,23 @@ function renderLargeUnitOverlay(u){
   });
 
   const hpPct = Math.max(0, Math.min(100, (u.hp/u.maxHp*100)||0));
-  const spPct = Math.max(0, Math.min(100, (u.maxSp ? (u.sp/u.maxSp*100) : 0)));
+  
+  // Handle negative SP for units like Lirathe Phase 2 (SP from -80 to 0)
+  let spPct = 0;
+  let spBarColor = '#40a9ff'; // Default blue
+  if(u.maxSp > 0){
+    spPct = Math.max(0, Math.min(100, (u.sp/u.maxSp*100)));
+  } else if(u.minSp !== undefined && u.minSp < 0 && u.sp < 0){
+    // Negative SP bar: calculate percentage from minSp to 0
+    // e.g., if minSp=-80, sp=-40, then percentage = ((-40) - (-80)) / (0 - (-80)) = 40/80 = 50%
+    spPct = Math.max(0, Math.min(100, ((u.sp - u.minSp) / (0 - u.minSp) * 100)));
+    spBarColor = '#9254de'; // Purple for negative SP
+  }
 
   overlay.innerHTML = `
     <div class="title">${u.name}</div>
     <div class="hpbar"><div class="hpfill" style="width:${hpPct}%"></div></div>
-    <div class="spbar"><div class="spfill" style="width:${spPct}%"></div></div>
+    <div class="spbar"><div class="spfill" style="width:${spPct}%; background:${spBarColor};"></div></div>
   `;
   const facingArrow=document.createElement('div');
   facingArrow.className='facing-arrow';
@@ -5428,10 +5482,10 @@ function processUnitsTurnStart(side){
       appendLog(`${u.name} 的“恢复”触发：+5HP（剩余 ${u.status.recoverStacks}）`);
     }
 
-    // Bleed: 5% max HP damage per turn, consume 0.5 stacks
+    // Bleed: 5% max HP damage per turn (flat, regardless of stack count), consume 0.5 stacks
     if(u.status.bleed && u.status.bleed>0){
       const bleedDmg = Math.max(1, Math.floor(u.maxHp*0.05));
-      damageUnit(u.id, bleedDmg, 0, `${u.name} 因流血受损`, null);
+      damageUnit(u.id, bleedDmg, 0, `${u.name} 因流血受损 (5% 固定)`, null);
       u.status.bleed = Math.max(0, u.status.bleed - 0.5);
       updateStatusStacks(u,'bleed', u.status.bleed, {label:'流血', type:'debuff'});
     }
