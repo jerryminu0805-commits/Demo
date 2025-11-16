@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>2D 回合制 RPG Demo - 七海作战队Boss战</title>
+  <link rel="stylesheet" href="boss-battle-styles.css" />
+</head>
+<body>
+  <!-- Boss Battle BGM -->
+  <audio id="bossBGM" src="boss_bgm.mp3" loop preload="auto"></audio>
+
+  <div id="battleCamera">
+    <div class="app">
+      <div class="left" id="mapPane">
+        <div id="battleArea" class="board"></div>
+      </div>
+      <div class="right">
+        <div class="panel">
+          <div class="steps">
+            玩家步数: <span id="playerSteps">0</span> | 敌方步数: <span id="enemySteps">0</span> | 回合: <span id="roundCount">0</span>
+          </div>
+          <div class="section">
+            <h3>队伍状态</h3>
+            <div id="partyStatus"></div>
+          </div>
+          <div class="section">
+            <h3>当前选择</h3>
+            <div id="selectedInfo"></div>
+          </div>
+          <div class="section">
+            <h3>手牌</h3>
+            <div id="skillPool" class="skillPool"></div>
+          </div>
+          <div class="actions">
+            <button id="endTurnBtn">结束回合</button>
+          </div>
+        </div>
+        <div class="panel logPanel">
+          <h3>战斗日志</h3>
+          <div id="log" class="log"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="accomplish" class="modal hidden">
+    <div class="modal-content">
+      <h2>战斗胜利！</h2>
+      <div id="damageSummary"></div>
+      <div class="modal-actions">
+        <button id="confirmBtn">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="boss-battle-script.js"></script>
+</body>
+</html>
