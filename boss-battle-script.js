@@ -2179,6 +2179,7 @@ function handleUnitDeath(u, source){
   if(u.id === 'lirathe' && !u._transformed && u.hp <= 0){
     u.hp = 1; // Prevent actual death
     u._transformed = true;
+    u.size = 2; // Lirathe becomes 2x2 in phase 2
     u.maxHp = 1200;
     u.hp = 1200;
     u.maxSp = 0;
@@ -2187,6 +2188,7 @@ function handleUnitDeath(u, source){
     u.restoreOnZeroPct = 0;
     u.spZeroHpPenalty = 20;
     u.spCrashThreshold = -80; // Changed from 0 to -80
+    u._highGround = true; // Lirathe is on high ground in phase 2
     
     // Clear skill pool, force redraw Phase 2 skills
     u.skillPool = [];
@@ -2196,6 +2198,7 @@ function handleUnitDeath(u, source){
     appendLog('=====================');
     appendLog('Lirathe 进入第二阶段！');
     appendLog('变身后的Lirathe失去了视力，但听觉敏锐！');
+    appendLog('Lirathe 现在是2x2大体型，站在高处！');
     appendLog('=====================');
     
     // Start consciousness flower and healing tile timers
@@ -3325,11 +3328,11 @@ async function lirathe_DashSlash(u, desc){
     if(tu && tu.side!=='enemy') finalTarget = tu;
   }
   
-  // Dash to the cell (stop at last enemy or at end)
+  // Dash to the end of attack range (don't stop at enemy)
   let newR=u.r, newC=u.c;
   for(const c of cells){
     const occ=getUnitAt(c.r,c.c);
-    if(occ && occ.side!=='enemy') break;
+    // Continue to the end, only stop if blocked by terrain
     if(!occ || occ===u){ newR=c.r; newC=c.c; }
   }
   if(newR!==u.r || newC!==u.c){
@@ -4253,10 +4256,22 @@ function buildSkillFactoriesForUnit(u){
           {aoe:true},
           {castMs:1100}
         )},
-        { key:'又想逃？', prob:0.40, cond:()=>true, make:()=> skill('又想逃？',2,'blue','移动任意2格（贴墙则4格），对相邻敌人造成5HP',
+        { key:'又想逃？', prob:0.60, cond:()=>true, make:()=> skill('又想逃？',2,'blue','快速接近敌人：离敌方4格+则移动4格(靠墙则5格)，否则移动2格，对相邻敌人造成5HP',
           (uu)=> {
+            // Check distance to nearest enemy
+            const enemies = Object.values(units).filter(u=>u.side==='player' && u.hp>0);
+            let minDist = 999;
+            for(const e of enemies){
+              const d = mdist(uu, e);
+              if(d < minDist) minDist = d;
+            }
+            
+            const farFromEnemies = minDist >= 4;
             const nearWall = range_adjacent(uu).some(p=> !clampCell(p.r+DIRS[p.dir].dr, p.c+DIRS[p.dir].dc));
-            return range_move_radius(uu, nearWall ? 4 : 2);
+            
+            // When far from enemies: use extended range, especially near walls
+            const moveRange = farFromEnemies ? (nearWall ? 5 : 4) : 2;
+            return range_move_radius(uu, moveRange);
           },
           (uu,payload)=> lirathe_EscapeMove(uu,payload),
           {},
@@ -5103,11 +5118,23 @@ function processUnitsTurnStart(side){
   if(side==='enemy'){
     if(roundsPassed % 2 === 0){
       const haz = units['haz'];
-      if(haz && haz.hp>0){ haz.sp = Math.min(haz.maxSp, haz.sp+10); syncSpBroken(haz); showGainFloat(haz,0,10); appendLog('队员们听令！Haz +10SP'); }
-      for(const id in units){
-        const v=units[id]; if(v.team==='seven' && v.hp>0 && v.id!=='haz'){ v.sp = Math.min(v.maxSp, v.sp+5); syncSpBroken(v); showGainFloat(v,0,5); }
+      if(haz && haz.hp>0){ 
+        haz.sp = Math.min(haz.maxSp, haz.sp+10); 
+        syncSpBroken(haz); 
+        showGainFloat(haz,0,10); 
+        appendLog('队员们听令！Haz +10SP'); 
+        
+        // Only log team command if haz exists
+        for(const id in units){
+          const v=units[id]; 
+          if(v.team==='seven' && v.hp>0 && v.id!=='haz'){ 
+            v.sp = Math.min(v.maxSp, v.sp+5); 
+            syncSpBroken(v); 
+            showGainFloat(v,0,5); 
+          }
+        }
+        appendLog('队员们听令！其他队员 +5SP');
       }
-      appendLog('队员们听令！其他队员 +5SP');
     }
     if(roundsPassed >= 20){
       for(const id of ['katz','tusk','neyla','kyn']){
@@ -5122,6 +5149,12 @@ function processUnitsTurnStart(side){
         }
       }
     }
+  }
+
+  // Check healing and weakness tiles once per turn for all player units
+  if(side==='player'){
+    checkHealingTiles();
+    checkWeaknessTiles();
   }
 
   for(const id in units){
@@ -5141,11 +5174,6 @@ function processUnitsTurnStart(side){
 
     // 姿态：回合开始时结算SP恢复与持续回合-1；结束时主动清除
     
-    // Check healing tiles for player units
-    if(side==='player'){
-      checkHealingTiles();
-      checkWeaknessTiles();
-    }
     if(u._stanceType && u._stanceTurns>0){
       if(u._stanceSpPerTurn>0){
         const beforeSP = u.sp;
