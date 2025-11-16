@@ -10,8 +10,8 @@
   --danger: #ff4d4f;
   --grid-gap: 6px;
   --cell: 56px; /* 与脚本 CELL_SIZE 对齐 */
-  --board-width: calc(var(--cell) * 22 + var(--grid-gap) * 21 + 18px);
-  --board-height: calc(var(--cell) * 18 + var(--grid-gap) * 17 + 18px);
+  --board-width: calc(var(--cell) * 26 + var(--grid-gap) * 25 + 18px);
+  --board-height: calc(var(--cell) * 9 + var(--grid-gap) * 8 + 18px);
   --radius: 10px;
 }
 

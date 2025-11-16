@@ -16,8 +16,8 @@
 // - 修复：Tusk（2x2）被点击锁定时，技能指向将智能映射到其四个覆盖格之一，避免“进入姿态后无法被选中/命中”（具体逻辑在 part2 的 overlay 点击处理）。
 // - 新增保证：在“敌方回合结束，玩家回合开始”之前，敌方必定把步数用到 0（若无技能则自动向玩家单位逼近），详见 part2 的 exhaustEnemySteps 与 finishEnemyTurn 逻辑。
 
-let ROWS = 18;
-let COLS = 22;
+let ROWS = 9;
+let COLS = 26;
 
 const CELL_SIZE = 56;
 const GRID_GAP = 6;
@@ -124,9 +124,8 @@ function clearAIWatchdog(){ if(aiWatchdogTimer){ clearTimeout(aiWatchdogTimer); 
 // —— 地图/掩体 ——
 function toRC_FromBottomLeft(x, y){ const c = x + 1; const r = ROWS - y; return { r, c }; }
 function isVoidCell(r,c){
-  const voidRStart = ROWS - 8 + 1; // 11
-  const voidCStart = COLS - 10 + 1; // 13
-  return (r >= voidRStart && c >= voidCStart);
+  // 9x26 map - no void cells for this battle
+  return false;
 }
 const coverCells = new Set();
 function addCoverRectBL(x1,y1,x2,y2){
@@ -196,17 +195,10 @@ function createUnit(id, name, side, level, r, c, maxHp, maxSp, restoreOnZeroPct,
   };
 }
 const units = {};
-// 玩家
-units['adora'] = createUnit('adora','Adora','player',52, 17, 2, 100,100, 0.5,0, ['backstab','calmAnalysis','proximityHeal','fearBuff']);
-units['dario'] = createUnit('dario','Dario','player',52, 17, 6, 150,100, 0.75,0, ['quickAdjust','counter','moraleBoost']);
-units['karma'] = createUnit('karma','Karma','player',52, 17, 4, 200,50, 0.5,20, ['violentAddiction','toughBody','pride']);
-// 七海
-function applyAftermath(u){ u.hp = Math.max(1, Math.floor(u.hp * 0.75)); if(!u.passives.includes('aftermath')) u.passives.push('aftermath'); }
-units['haz']  = createUnit('haz','Haz','enemy',55, 4,21, 750,100, 1.0,0, ['hazObsess','hazHatred','hazOrders','hazWorth','hazCritWindow','hazHunt'], {team:'seven', stunThreshold:4, pullImmune:true}); applyAftermath(units['haz']);
-units['katz'] = createUnit('katz','Katz','enemy',53, 3,19, 500,75, 1.0,0, ['katzHidden','katzExecution','katzStrong'], {team:'seven', stunThreshold:3, pullImmune:true}); applyAftermath(units['katz']);
-units['tusk'] = createUnit('tusk','Tusk','enemy',54, 6,19, 1000,60, 1.0,0, ['tuskGuard','tuskWall','tuskBull'], {team:'seven', size:2, stunThreshold:3, pullImmune:true}); applyAftermath(units['tusk']);
-units['neyla']= createUnit('neyla','Neyla','enemy',52, 2,15, 350,80, 1.0,0, ['neylaAim','neylaCold','neylaReload'], {team:'seven', stunThreshold:2}); applyAftermath(units['neyla']);
-units['kyn']  = createUnit('kyn','Kyn','enemy',51, 7,15, 250,70, 1.0,0, ['kynReturn','kynExecute','kynSwift'], {team:'seven', stunThreshold:2}); applyAftermath(units['kyn']);
+// 玩家 - 旧情未了关卡
+units['karma'] = createUnit('karma','Karma','player',50, 5, 22, 200,50, 0.5,20, ['violentAddiction','toughBody','pride']);
+// Boss - Lirathe
+units['lirathe'] = createUnit('lirathe','Lirathe/利拉斯-赫雷西第五干部','enemy',50, 5, 5, 700,80, 0.75,20, ['dancerDream','achingHeart','swiftAgility','rebirth','reluctance'], {stunThreshold:4, pullImmune:true});
 
 // —— 范围/工具 ——
 const DIRS = { up:{dr:-1,dc:0}, down:{dr:1,dc:0}, left:{dr:0,dc:-1}, right:{dr:0,dc:1} };
@@ -5163,10 +5155,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   cameraReset({immediate:true});
   startCameraLoop();
 
-  // 掩体（不可进入）
-  addCoverRectBL(2,3,4,5);
-  addCoverRectBL(2,12,5,14);
-  addCoverRectBL(10,11,12,13);
+  // 掩体（不可进入）- 旧情未了关卡无掩体
 
   injectFXStyles();
 
@@ -5188,11 +5177,10 @@ document.addEventListener('DOMContentLoaded', ()=>{
   }
   window.addEventListener('load', ()=> refreshLargeOverlays());
 
-  appendLog('七海作战队 Boss 战开始：地图 18x22，右下角 8x10 空缺；掩体为不可进入。');
-  appendLog('叠层眩晕：精英2层（Kyn/Neyla）；小Boss3层（Tusk/Katz）；Boss4层（Haz）。SP崩溃直接眩晕且下回合自动回蓝。');
-  appendLog('敌方攻击带预警并有较长前摇；AOE 预警为青色、命中为红色；多阶段技能逐段即时结算并以黄色标记上一段受击区。');
-  appendLog('保证：敌方在回合结束前必定将步数耗尽；若无法施放技能，则必定向玩家单位移动或消步。');
-  appendLog('每个来回计 1 回合；20 回合后触发“队长的压迫”。');
+  appendLog('旧情未了 Boss 战开始：地图 9x26');
+  appendLog('Boss：Lirathe（利拉斯-赫雷西第五干部）- 两阶段战斗');
+  appendLog('第2回合时，Adora和Dario将以虚影形式出现支援Karma');
+  appendLog('敌方攻击带预警并有较长前摇；AOE 预警为青色、命中为红色；多阶段技能逐段即时结算。');
 
   const endTurnBtn=document.getElementById('endTurnBtn');
   if(endTurnBtn) endTurnBtn.addEventListener('click', ()=>{ if(interactionLocked) return; endTurn(); });
