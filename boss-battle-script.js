@@ -3717,6 +3717,97 @@ function buildSkillFactoriesForUnit(u){
         )}
       );
     }
+  } else if(u.id==='lirathe'){
+    // Lirathe Phase 1 (before transformation)
+    if(!u._transformed){
+      F.push(
+        { key:'刺斩', prob:0.80, cond:()=>true, make:()=> skill('刺斩',1,'red','上下左右冲刺4格，对最后一个敌人造成15HP并上脆弱Debuff',
+          (uu,aimDir)=> aimDir? range_forward_n(uu,4,aimDir) : (()=>{const a=[]; for(const d in DIRS) range_forward_n(uu,4,d).forEach(x=>a.push(x)); return a;})(),
+          (uu,desc)=> lirathe_DashSlash(uu,desc),
+          {aoe:true},
+          {castMs:1100}
+        )},
+        { key:'又想逃？', prob:0.40, cond:()=>true, make:()=> skill('又想逃？',2,'blue','移动任意2格（贴墙则4格），对相邻敌人造成5HP',
+          (uu)=> {
+            const nearWall = range_adjacent(uu).some(p=> !clampCell(p.r+DIRS[p.dir].dr, p.c+DIRS[p.dir].dc));
+            return range_move_radius(uu, nearWall ? 4 : 2);
+          },
+          (uu,payload)=> lirathe_EscapeMove(uu,payload),
+          {},
+          {moveSkill:true, moveRadius:4, castMs:800}
+        )},
+        { key:'刀光吸入', prob:0.40, cond:()=>true, make:()=> skill('刀光吸入',2,'red','前方3x2横扫20伤并上刀光（10层爆炸造成5HP/5SP/层并恢复自身）',
+          (uu,aimDir)=> aimDir? forwardRectCentered(uu,aimDir,3,2) : (()=>{const a=[]; for(const d in DIRS) forwardRectCentered(uu,d,3,2).forEach(x=>a.push(x)); return a;})(),
+          (uu,desc)=> lirathe_BladeAbsorb(uu,desc),
+          {aoe:true},
+          {castMs:1200}
+        )},
+        { key:'剑舞', prob:0.25, cond:()=>true, make:()=> skill('剑舞',3,'red','多段攻击：前方3x2横扫→反向横扫→3x3→5x5→7x7，全命中上戏谑Buff',
+          (uu,aimDir)=> aimDir? forwardRectCentered(uu,aimDir,3,2) : (()=>{const a=[]; for(const d in DIRS) forwardRectCentered(uu,d,3,2).forEach(x=>a.push(x)); return a;})(),
+          (uu,desc)=> lirathe_SwordDance(uu,desc),
+          {aoe:true},
+          {castMs:2400}
+        )}
+      );
+      // Unlocked after HP <= 50%
+      const hpPct = u.hp / u.maxHp;
+      if(hpPct <= 0.5){
+        F.push(
+          { key:'飞溅刀光', prob:0.25, cond:()=>true, make:()=> skill('飞溅刀光',3,'red','前方整排飞溅刀光三段：15HP+刀光→全排15HP+刀光→贯穿5HP+刀光',
+            (uu,aimDir)=> aimDir? range_line(uu,aimDir) : (()=>{const a=[]; for(const d in DIRS) range_line(uu,d).forEach(x=>a.push(x)); return a;})(),
+            (uu,desc)=> lirathe_SplashBlade(uu,desc),
+            {aoe:true},
+            {castMs:1800}
+          )},
+          { key:'别跑', prob:0.40, cond:()=>true, make:()=> skill('别跑',2,'red','前方整排蛛网15SP伤害，50%禁锢（无法移动但可用技能）',
+            (uu,aimDir)=> aimDir? range_line(uu,aimDir) : (()=>{const a=[]; for(const d in DIRS) range_line(uu,d).forEach(x=>a.push(x)); return a;})(),
+            (uu,desc)=> lirathe_DontRun(uu,desc),
+            {aoe:true},
+            {castMs:1200}
+          )}
+        );
+      }
+    } else {
+      // Lirathe Phase 2 (after transformation)
+      F.push(
+        { key:'冲杀', prob:0.75, cond:()=>true, make:()=> skill('冲杀',2,'red','向前冲刺到底，撞到的敌人20HP/10SP+腐蚀，摧毁掩体',
+          (uu,aimDir)=> aimDir? range_line(uu,aimDir) : (()=>{const a=[]; for(const d in DIRS) range_line(uu,d).forEach(x=>a.push(x)); return a;})(),
+          (uu,desc)=> lirathe_ChargeKill(uu,desc),
+          {aoe:true},
+          {castMs:1200}
+        )},
+        { key:'你在哪', prob:0.30, cond:()=>true, make:()=> skill('你在哪',2,'red','6x6吼叫10SP+腐蚀+看见（下回合结束消失）',
+          (uu)=> range_square_n(uu,3),
+          (uu)=> lirathe_WhereAreYou(uu),
+          {aoe:true},
+          {castMs:1200}
+        )},
+        { key:'掏心掏肺', prob:0.25, cond:()=>true, make:()=> skill('掏心掏肺',2,'red','前方2x2反复撕扯三次15HP/5SP+腐蚀（>5层腐蚀再重复）',
+          (uu,aimDir)=> {
+            const cells=[];
+            for(const d in DIRS){
+              const dir=d;
+              for(let dr=0;dr<=1;dr++){
+                for(let dc=0;dc<=1;dc++){
+                  const rr=uu.r+DIRS[dir].dr+dr, cc=uu.c+DIRS[dir].dc+dc;
+                  if(clampCell(rr,cc)) cells.push({r:rr,c:cc,dir});
+                }
+              }
+            }
+            return cells;
+          },
+          (uu,desc)=> lirathe_RipHeart(uu,desc),
+          {aoe:true},
+          {castMs:1800}
+        )},
+        { key:'找不到路', prob:0.25, cond:()=>true, make:()=> skill('找不到路',3,'red','四个方向冲刺各20HP/10SP+腐蚀',
+          (uu)=>[{r:uu.r,c:uu.c,dir:uu.facing}],
+          (uu)=> lirathe_CantFindWay(uu),
+          {aoe:true},
+          {castMs:2400}
+        )}
+      );
+    }
   }
   
   // Filter skills based on selection if character is level 50+
