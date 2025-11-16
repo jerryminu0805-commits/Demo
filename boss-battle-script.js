@@ -1992,6 +1992,16 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
       return;
     }
   }
+  
+  // Lirathe high ground evasion - dodges all attacks when on high ground
+  if(u.id === 'lirathe' && u._transformed && u._highGround && !opts.ignoreHighGround){
+    appendLog(`${u.name} 在高处：闪避所有攻击！`);
+    showStatusFloat(u,'闪避',{type:'buff', offsetY:-48});
+    pulseCell(u.r,u.c);
+    renderAll();
+    return;
+  }
+  
   // 力挽狂澜减伤
   if(u.id==='haz' && u._comeback && !trueDamage){
     hpDmg = Math.round(hpDmg * 0.9);
@@ -4874,6 +4884,53 @@ function tryLiratheClimbing(u){
   }
   return false;
 }
+
+// Helper function to check if cell is adjacent to a wall
+function isAdjacentToWall(r, c){
+  const directions = [{dr:-1,dc:0}, {dr:1,dc:0}, {dr:0,dc:-1}, {dr:0,dc:1}];
+  for(const d of directions){
+    if(isCoverCell(r + d.dr, c + d.dc)){
+      return true;
+    }
+  }
+  return false;
+}
+
+// Helper function to check if Lirathe can move to target position when on high ground
+function canLiratheMoveOnHighGround(u, targetR, targetC){
+  if(!u || u.id !== 'lirathe' || !u._transformed || !u._highGround) return false;
+  
+  // Must be adjacent to current position
+  if(Math.abs(targetR - u.r) + Math.abs(targetC - u.c) !== 1) return false;
+  
+  // Target position must be adjacent to a wall
+  if(!isAdjacentToWall(targetR, targetC)){
+    return false;
+  }
+  
+  // Target position must be valid and unoccupied
+  if(!clampCell(targetR, targetC)) return false;
+  const occupant = getUnitAt(targetR, targetC);
+  if(occupant && occupant !== u) return false;
+  
+  return true;
+}
+
+// Helper function to check if Lirathe can see a target (Darkness passive)
+function canLiratheSeeTarget(lirathe, target){
+  if(!lirathe || lirathe.id !== 'lirathe' || !lirathe._transformed) return true; // Not Lirathe or not transformed
+  if(!lirathe.passives.includes('liratheDarkness')) return true; // Doesn't have darkness passive
+  if(!target || target.hp <= 0) return false; // Invalid or dead target
+  if(target.side === 'enemy') return true; // Always sees allies
+  
+  // Can see targets with "exposed" or "seen" status
+  if(target.status && (target.status.exposedStacks > 0 || target.status.seenStacks > 0)){
+    return true;
+  }
+  
+  return false; // Cannot see this target
+}
+
 function showDistanceDisplay(r, c, distance){
   clearDistanceDisplay();
   ensureFxLayer();
@@ -5883,6 +5940,36 @@ function enemyLivingPlayers(){ return Object.values(units).filter(u=>u.side==='p
 function buildSkillCandidates(en){
   const skillset = (en.skillPool && en.skillPool.length) ? en.skillPool : [];
   const candidates=[];
+  
+  // Check if Lirathe can see any targets (Darkness passive)
+  const isBlindLirathe = en.id === 'lirathe' && en._transformed && en.passives.includes('liratheDarkness');
+  let hasVisibleTargets = false;
+  
+  if(isBlindLirathe){
+    // Check if there are any visible player units
+    for(const id in units){
+      const u = units[id];
+      if(u && u.hp > 0 && u.side === 'player' && canLiratheSeeTarget(en, u)){
+        hasVisibleTargets = true;
+        break;
+      }
+    }
+    
+    if(!hasVisibleTargets){
+      // No visible targets - Lirathe attacks randomly
+      // Pick random skills and random directions
+      for(const sk of skillset){
+        if(sk.cost>enemySteps) continue;
+        const dirs = Object.keys(DIRS);
+        const randomDir = dirs[Math.floor(Math.random() * dirs.length)];
+        candidates.push({sk, dir:randomDir, score: 5, blind: true}); // Low score, random direction
+      }
+      appendLog(`${en.name} 失去视力：随机释放技能！`);
+      candidates.sort((a,b)=> b.score-a.score);
+      return candidates;
+    }
+  }
+  
   for(const sk of skillset){
     if(sk.cost>enemySteps) continue;
     try{
@@ -5902,7 +5989,11 @@ function buildSkillCandidates(en){
         const adj = range_adjacent(en);
         for(const c of adj){
           const tu=getUnitAt(c.r,c.c);
-          if(tu && tu.side==='player'){ candidates.push({sk, dir:c.dir, targetUnit:tu, score: 16}); }
+          if(tu && tu.side==='player'){
+            // Check vision for Lirathe
+            if(isBlindLirathe && !canLiratheSeeTarget(en, tu)) continue;
+            candidates.push({sk, dir:c.dir, targetUnit:tu, score: 16});
+          }
         }
       } else if(sk.meta && sk.meta.cellTargeting){
         const cells = sk.rangeFn(en, en.facing, null) || [];
@@ -5910,6 +6001,8 @@ function buildSkillCandidates(en){
         for(const c of cells){
           const tu=getUnitAt(c.r,c.c);
           if(tu && tu.side==='player' && tu.hp>0){
+            // Check vision for Lirathe
+            if(isBlindLirathe && !canLiratheSeeTarget(en, tu)) continue;
             const hpRatio = tu.hp/tu.maxHp;
             const sc = 18 + Math.floor((1-hpRatio)*20);
             if(sc>bestScore){ bestScore=sc; best={sk, targetUnit:tu, score:sc}; }
@@ -5922,7 +6015,11 @@ function buildSkillCandidates(en){
           let hits=0, set=new Set();
           for(const c of cells){
             const tu=getUnitAt(c.r,c.c);
-            if(tu && tu.side==='player' && !set.has(tu.id)){ set.add(tu.id); hits++; }
+            if(tu && tu.side==='player' && !set.has(tu.id)){
+              // Check vision for Lirathe
+              if(isBlindLirathe && !canLiratheSeeTarget(en, tu)) continue;
+              set.add(tu.id); hits++;
+            }
           }
           if(hits>0) candidates.push({sk, dir:d, score: 10 + hits*8});
         }
@@ -5982,6 +6079,33 @@ async function execEnemySkillCandidate(en, cand){
 }
 function stepTowardNearestPlayer(en){
   if(!canUnitMove(en)) return false;
+  
+  // Special handling for Lirathe on high ground
+  if(en.id === 'lirathe' && en._transformed && en._highGround){
+    // Can only move along walls
+    const adj = range_adjacent(en);
+    const validMoves = [];
+    for(const pos of adj){
+      if(canLiratheMoveOnHighGround(en, pos.r, pos.c)){
+        validMoves.push(pos);
+      }
+    }
+    
+    if(validMoves.length > 0){
+      // Pick a random valid move along the wall
+      const move = validMoves[Math.floor(Math.random() * validMoves.length)];
+      setUnitFacing(en, move.dir || en.facing);
+      en.r = move.r; en.c = move.c;
+      enemySteps = Math.max(0, enemySteps - 1);
+      updateStepsUI();
+      cameraFocusOnCell(en.r,en.c);
+      renderAll();
+      appendLog(`${en.name} 在高处沿墙移动 1 步`);
+      return true;
+    }
+    return false; // Can't move - no valid adjacent wall cells
+  }
+  
   const players = enemyLivingPlayers();
   if(players.length===0) return false;
   // BFS toward any player's adjacent cell
