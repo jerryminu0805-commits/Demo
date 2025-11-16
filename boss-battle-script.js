@@ -2583,16 +2583,19 @@ function karmaGrip(u,target){
   if(!target || target.side===u.side){ appendLog('嗜血之握 目标无效'); return; }
   cameraFocusOnCell(target.r, target.c);
   let fixed = null;
-  if(target.id==='haz') fixed = 75;
-  else if(target.id==='tusk' || target.id==='katz') fixed = 80;
-  else if(target.id==='kyn' || target.id==='neyla') fixed = 100;
-  // Add support for heresy enemies
-  if(target.id==='khathia') fixed = 75;
-  if(target.id==='heresy_boss_b') fixed = 80;
-  if(target.id && target.id.startsWith('heresy_elite_')) fixed = 100;
+  
+  // Boss units (cannot be instantly killed, only dealt fixed damage)
+  if(target.id==='haz' || target.id==='lirathe' || target.id==='khathia') fixed = 75;
+  
+  // Small Boss units
+  else if(target.id==='tusk' || target.id==='katz' || target.id==='heresy_boss_b') fixed = 80;
+  
+  // Elite units
+  else if(target.id==='kyn' || target.id==='neyla' || (target.id && target.id.startsWith('heresy_elite_'))) fixed = 100;
+  
   if(fixed!==null){
     const deal = Math.min(target.hp, fixed);
-    damageUnit(target.id, deal, 0, `${u.name} 嗜血之握 重创 ${target.name}`, u.id, {trueDamage:true, ignoreTuskWall:true, skillFx:'karma:嗜血之握'});
+    damageUnit(target.id, deal, 0, `${u.name} 嗜血之握 重创 ${target.name} (${deal}伤害)`, u.id, {trueDamage:true, ignoreTuskWall:true, skillFx:'karma:嗜血之握'});
   } else {
     // Normal enemies - execute with true damage
     damageUnit(target.id, target.hp, 0, `${u.name} 嗜血之握 处决 ${target.name}`, u.id, {trueDamage:true, ignoreTuskWall:true, skillFx:'karma:嗜血之握'});
@@ -3397,76 +3400,91 @@ async function lirathe_SwordDance(u, desc){
   const dir = desc && desc.dir ? desc.dir : u.facing;
   setUnitFacing(u, dir);
   
-  let hitCount = 0;
-  const seen=new Set();
+  let stagesHit = 0; // Track how many stages hit at least one enemy
+  const seenPerStage = [new Set(), new Set(), new Set(), new Set(), new Set()]; // Track unique hits per stage
   
   // Stage 1: Forward 3x2
   let cells = forwardRectCentered(u,dir,3,2);
   await telegraphThenImpact(cells);
+  let stageHitSomething = false;
   for(const c of cells){
     const tu=getUnitAt(c.r,c.c);
-    if(tu && tu.side!=='enemy' && !seen.has(tu.id)){
+    if(tu && tu.side!=='enemy' && !seenPerStage[0].has(tu.id)){
       damageUnit(tu.id, 20, 0, `${u.name} 剑舞阶段1 ${tu.name}`, u.id, {skillName:'剑舞'});
       if(!tu.status.vulnerableStacks) tu.status.vulnerableStacks = 0;
       tu.status.vulnerableStacks += 1;
       updateStatusStacks(tu,'vulnerableStacks',tu.status.vulnerableStacks,{label:'脆弱',type:'debuff'});
-      hitCount++; seen.add(tu.id);
+      seenPerStage[0].add(tu.id);
+      stageHitSomething = true;
     }
   }
+  if(stageHitSomething) stagesHit++;
   
   // Stage 2: Reverse direction
   const revDir = {up:'down',down:'up',left:'right',right:'left'}[dir] || dir;
   cells = forwardRectCentered(u,revDir,3,2);
   await telegraphThenImpact(cells);
+  stageHitSomething = false;
   for(const c of cells){
     const tu=getUnitAt(c.r,c.c);
-    if(tu && tu.side!=='enemy' && !seen.has(tu.id)){
+    if(tu && tu.side!=='enemy' && !seenPerStage[1].has(tu.id)){
       damageUnit(tu.id, 20, 0, `${u.name} 剑舞阶段2 ${tu.name}`, u.id, {skillName:'剑舞'});
-      hitCount++; seen.add(tu.id);
+      seenPerStage[1].add(tu.id);
+      stageHitSomething = true;
     }
   }
+  if(stageHitSomething) stagesHit++;
   
   // Stage 3: 3x3
   cells = range_square_n(u,1);
   await telegraphThenImpact(cells);
+  stageHitSomething = false;
   for(const c of cells){
     const tu=getUnitAt(c.r,c.c);
-    if(tu && tu.side!=='enemy' && !seen.has(tu.id)){
+    if(tu && tu.side!=='enemy' && !seenPerStage[2].has(tu.id)){
       damageUnit(tu.id, 10, 0, `${u.name} 剑舞阶段3 ${tu.name}`, u.id, {skillName:'剑舞'});
-      hitCount++; seen.add(tu.id);
+      seenPerStage[2].add(tu.id);
+      stageHitSomething = true;
     }
   }
+  if(stageHitSomething) stagesHit++;
   
   // Stage 4: 5x5
   cells = range_square_n(u,2);
   await telegraphThenImpact(cells);
+  stageHitSomething = false;
   for(const c of cells){
     const tu=getUnitAt(c.r,c.c);
-    if(tu && tu.side!=='enemy' && !seen.has(tu.id)){
+    if(tu && tu.side!=='enemy' && !seenPerStage[3].has(tu.id)){
       damageUnit(tu.id, 15, 0, `${u.name} 剑舞阶段4 ${tu.name}`, u.id, {skillName:'剑舞'});
       if(!tu.status.bladeLightStacks) tu.status.bladeLightStacks = 0;
       tu.status.bladeLightStacks += 1;
       updateStatusStacks(tu,'bladeLightStacks',tu.status.bladeLightStacks,{label:'刀光',type:'debuff'});
-      hitCount++; seen.add(tu.id);
+      seenPerStage[3].add(tu.id);
+      stageHitSomething = true;
     }
   }
+  if(stageHitSomething) stagesHit++;
   
   // Stage 5: 7x7
   cells = range_square_n(u,3);
   await telegraphThenImpact(cells);
+  stageHitSomething = false;
   for(const c of cells){
     const tu=getUnitAt(c.r,c.c);
-    if(tu && tu.side!=='enemy' && !seen.has(tu.id)){
+    if(tu && tu.side!=='enemy' && !seenPerStage[4].has(tu.id)){
       damageUnit(tu.id, 15, 0, `${u.name} 剑舞阶段5 ${tu.name}`, u.id, {skillName:'剑舞'});
       if(!tu.status.bladeLightStacks) tu.status.bladeLightStacks = 0;
       tu.status.bladeLightStacks += 1;
       updateStatusStacks(tu,'bladeLightStacks',tu.status.bladeLightStacks,{label:'刀光',type:'debuff'});
-      hitCount++; seen.add(tu.id);
+      seenPerStage[4].add(tu.id);
+      stageHitSomething = true;
     }
   }
+  if(stageHitSomething) stagesHit++;
   
-  // If all stages hit at least one enemy, add mockery buff
-  if(hitCount >= 5){
+  // If all 5 stages hit at least one enemy, add mockery buff
+  if(stagesHit >= 5){
     if(!u.status.mockeryStacks) u.status.mockeryStacks = 0;
     u.status.mockeryStacks += 1;
     updateStatusStacks(u,'mockeryStacks',u.status.mockeryStacks,{label:'戏谑',type:'buff'});
@@ -4677,6 +4695,9 @@ function summarizeNegatives(u){
   if(u.status.bleed>0) parts.push(`流血x${u.status.bleed}`);
   if(u.status.hazBleedTurns>0) parts.push(`Haz流血x${u.status.hazBleedTurns}`);
   if(u.status.bloodyBud>0) parts.push(`血色花蕾x${u.status.bloodyBud}`);
+  if(u.status.corrosionStacks>0) parts.push(`腐蚀x${u.status.corrosionStacks}`);
+  if(u.status.vulnerableStacks>0) parts.push(`脆弱x${u.status.vulnerableStacks}`);
+  if(u.status.bladeLightStacks>0) parts.push(`刀光x${u.status.bladeLightStacks}`);
   if(u.status.recoverStacks>0) parts.push(`恢复x${u.status.recoverStacks}`);
   if(u.status.jixueStacks>0) parts.push(`鸡血x${u.status.jixueStacks}`);
   if(u.status.dependStacks>0) parts.push(`依赖x${u.status.dependStacks}`);
@@ -5154,11 +5175,35 @@ function processUnitsTurnStart(side){
       appendLog(`${u.name} 的“恢复”触发：+5HP（剩余 ${u.status.recoverStacks}）`);
     }
 
+    // Bleed: 5% max HP damage per turn, consume 0.5 stacks
     if(u.status.bleed && u.status.bleed>0){
       const bleedDmg = Math.max(1, Math.floor(u.maxHp*0.05));
       damageUnit(u.id, bleedDmg, 0, `${u.name} 因流血受损`, null);
-      u.status.bleed = Math.max(0, u.status.bleed-1);
+      u.status.bleed = Math.max(0, u.status.bleed - 0.5);
+      updateStatusStacks(u,'bleed', u.status.bleed, {label:'流血', type:'debuff'});
     }
+    
+    // Corrosion: 5% + (2% per stack) max HP damage per turn, consume 1 stack
+    // When all stacks are consumed, reset the accumulated damage
+    if(u.status.corrosionStacks && u.status.corrosionStacks>0){
+      // Track corrosion initial stacks for this application
+      if(!u._corrosionInitialStacks) u._corrosionInitialStacks = u.status.corrosionStacks;
+      
+      const baseDmg = 0.05;
+      const stackBonus = (u._corrosionInitialStacks - u.status.corrosionStacks) * 0.02;
+      const totalPct = baseDmg + stackBonus;
+      const corrosionDmg = Math.max(1, Math.floor(u.maxHp * totalPct));
+      
+      damageUnit(u.id, corrosionDmg, 0, `${u.name} 因腐蚀受损 (${Math.round(totalPct*100)}%)`, null);
+      u.status.corrosionStacks = Math.max(0, u.status.corrosionStacks - 1);
+      updateStatusStacks(u,'corrosionStacks', u.status.corrosionStacks, {label:'腐蚀', type:'debuff'});
+      
+      // Reset when all stacks consumed
+      if(u.status.corrosionStacks === 0){
+        u._corrosionInitialStacks = 0;
+      }
+    }
+    
     if(u.status.hazBleedTurns && u.status.hazBleedTurns>0){
       const bleedDmg = Math.max(1, Math.floor(u.maxHp*0.03));
       damageUnit(u.id, bleedDmg, 0, `${u.name} 因Haz流血受损`, null);
