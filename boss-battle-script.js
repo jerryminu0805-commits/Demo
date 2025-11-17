@@ -255,8 +255,8 @@ function range_two_rows(u, aimDir){
     const baseR = u.r + d.dr*depth;
     const baseC = u.c + d.dc*depth;
     let anyValid = false;
-    // Check center and one cell on each side (3 cells wide)
-    for(let offset=-1; offset<=1; offset++){
+    // Check two adjacent cells (2 cells wide)
+    for(let offset=0; offset<=1; offset++){
       const r = baseR + perp.dr*offset;
       const c = baseC + perp.dc*offset;
       if(clampCell(r,c)){
@@ -3781,7 +3781,10 @@ async function lirathe_ChargeKill(u, desc){
       updateStatusStacks(tu,'corrosionStacks',tu.status.corrosionStacks,{label:'腐蚀',type:'debuff'});
       seen.add(tu.id);
     }
-    if(!tu || tu===u){ newR=c.r; newC=c.c; }
+    // Only move to cells that are not at the absolute edge of the map
+    if((!tu || tu===u) && c.r > 1 && c.r < ROWS && c.c > 1 && c.c < COLS){ 
+      newR=c.r; newC=c.c; 
+    }
   }
   
   if(newR!==u.r || newC!==u.c){
@@ -3872,16 +3875,27 @@ async function lirathe_CantFindWay(u){
   // Charge in 4 directions
   for(const dir of ['up','down','left','right']){
     setUnitFacing(u, dir);
-    const line = range_line(u,dir);
+    const line = range_two_rows(u,dir);
     await telegraphThenImpact(line);
     
     // Move to the end of the line (last valid cell in this direction)
+    // For 2-row wide charge, use the furthest cell in the primary row
+    // But don't move to the absolute edge of the map
     if(line.length > 0){
-      const endPos = line[line.length - 1];
-      u.r = endPos.r;
-      u.c = endPos.c;
-      appendLog(`${u.name} 冲到 ${dir} 方向的尽头 (${endPos.r},${endPos.c})`);
-      renderAll();
+      // Find the furthest valid position that's not at map edge
+      let endPos = null;
+      for(let i = line.length - 1; i >= 0; i--){
+        if(line[i].r > 1 && line[i].r < ROWS && line[i].c > 1 && line[i].c < COLS){
+          endPos = line[i];
+          break;
+        }
+      }
+      if(endPos){
+        u.r = endPos.r;
+        u.c = endPos.c;
+        appendLog(`${u.name} 冲到 ${dir} 方向 (${endPos.r},${endPos.c})`);
+        renderAll();
+      }
     }
     
     const seen=new Set();
@@ -6133,6 +6147,34 @@ function buildSkillCandidates(en){
   for(const sk of skillset){
     if(sk.cost>enemySteps) continue;
     try{
+      // Special priority for "又想逃？" when far from enemies
+      if(sk.name === '又想逃？'){
+        const players = Object.values(units).filter(u=>u.side==='player' && u.hp>0);
+        if(players.length > 0){
+          let minDist = 999;
+          for(const p of players){
+            const d = mdist(en, p);
+            if(d < minDist) minDist = d;
+          }
+          // If far from any enemy (4+ cells), prioritize this skill highly
+          if(minDist >= 4){
+            const cells = sk.rangeFn(en, en.facing, null) || [];
+            if(cells.length > 0){
+              // High priority score when far from enemies to close distance
+              candidates.push({sk, targetUnit:null, score: 20});
+              continue;
+            }
+          } else if(minDist >= 2){
+            // Medium priority when moderately far
+            const cells = sk.rangeFn(en, en.facing, null) || [];
+            if(cells.length > 0){
+              candidates.push({sk, targetUnit:null, score: 12});
+              continue;
+            }
+          }
+        }
+      }
+      
       // 自我增益先（锁链缠绕/堡垒/反伤）
       const selfCells = sk.rangeFn(en, en.facing, null) || [];
       const isSelfOnly = selfCells.length>0 && selfCells.every(c=>c.r===en.r && c.c===en.c);
@@ -6332,7 +6374,7 @@ async function exhaustEnemySteps(){
       if(en.id==='neyla' && en.oppression) ensureNeylaEndShadowGuarantee(en);
       
       // Lirathe climbing passive: Prioritize climbing when targets are visible and not on high ground
-      if(en.id === 'lirathe' && en._transformed && en.passives.includes('liratheClimbing')){
+      if(en.id === 'lirathe' && en._transformed && en.passives.includes('liratheClimbing') && !en.status.stunned){
         // Check if there are visible targets
         let hasVisibleTargets = false;
         for(const id in units){
@@ -6350,6 +6392,43 @@ async function exhaustEnemySteps(){
             await aiAwait(300);
             // After climbing, skip to next unit to prioritize climbing action
             continue;
+          }
+          
+          // If can't climb immediately, try to move towards a wall to climb next turn
+          if(enemySteps > 0 && canUnitMove(en)){
+            const adj = range_adjacent(en);
+            // Look for moves that get us closer to a wall
+            const movesTowardWall = adj.filter(pos => {
+              if(getUnitAt(pos.r, pos.c)) return false; // Occupied
+              // Check if this position is adjacent to a wall
+              const adjToPos = [{dr:-1,dc:0}, {dr:1,dc:0}, {dr:0,dc:-1}, {dr:0,dc:1}];
+              for(const d of adjToPos){
+                if(isCoverCell(pos.r + d.dr, pos.c + d.dc)){
+                  return true;
+                }
+              }
+              return false;
+            });
+            
+            if(movesTowardWall.length > 0){
+              // Move to a position adjacent to a wall
+              const move = movesTowardWall[0];
+              setUnitFacing(en, move.dir || en.facing);
+              en.r = move.r; en.c = move.c;
+              enemySteps = Math.max(0, enemySteps - 1);
+              updateStepsUI();
+              cameraFocusOnCell(en.r, en.c);
+              renderAll();
+              appendLog(`${en.name} 拼尽全力试图靠近墙壁以爬上高处`);
+              progressedThisRound = true;
+              await aiAwait(300);
+              // Try to climb again after moving
+              if(tryLiratheClimbing(en)){
+                progressedThisRound = true;
+                await aiAwait(300);
+              }
+              continue;
+            }
           }
         } else if(!hasVisibleTargets && en._highGround){
           // Descend when no visible targets (return to random mode)
