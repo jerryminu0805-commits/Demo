@@ -1999,8 +1999,8 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
   if(source){
     if(source.side === u.side){ appendLog(`友伤无效：${source.name} -> ${u.name}`); return; }
 
-    // 灵活Buff - 30%几率miss攻击
-    if(!opts.ignoreMiss && u.status && u.status.agileStacks > 0 && Math.random() < 0.30){
+    // 灵活Buff - 30%几率miss攻击 (except when attacker has _guaranteeHit flag)
+    if(!opts.ignoreMiss && u.status && u.status.agileStacks > 0 && Math.random() < 0.30 && !source._guaranteeHit){
       appendLog(`${u.name} 的"灵活"触发：${source.name} 的攻击Miss！`);
       updateStatusStacks(u,'agileStacks', Math.max(0, u.status.agileStacks - 1), {label:'灵活', type:'buff'});
       showStatusFloat(u,'Miss',{type:'buff', offsetY:-48});
@@ -2027,16 +2027,16 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
     }
   }
 
-  // 掩体：远程（距离>1）才被掩体免疫
-  if(source && !trueDamage){
+  // 掩体：远程（距离>1）才被掩体免疫 (except when attacker has _fullDamage flag)
+  if(source && !trueDamage && !source._fullDamage){
     if(isCoverCell(u.r, u.c) && mdist(source, u) > 1 && !opts.ignoreCover){
       appendLog(`${u.name} 处于掩体内，抵御了远距离伤害`);
       return;
     }
   }
   
-  // Lirathe high ground evasion - dodges all attacks when on high ground
-  if(u.id === 'lirathe' && u._transformed && u._highGround && !opts.ignoreHighGround){
+  // Lirathe high ground evasion - dodges all attacks when on high ground (except from _fullDamage attackers)
+  if(u.id === 'lirathe' && u._transformed && u._highGround && !opts.ignoreHighGround && !source._fullDamage){
     appendLog(`${u.name} 在高处：闪避所有攻击！`);
     showStatusFloat(u,'闪避',{type:'buff', offsetY:-48});
     pulseCell(u.r,u.c);
@@ -2249,8 +2249,8 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
     u._lastDamagedRound = roundsPassed;
   }
   
-  // Lirathe HP≤400 Final Phase trigger
-  if(u.id === 'lirathe' && u._transformed && u.hp <= 400 && u.hp > 0 && !u._finalPhaseTriggered){
+  // Lirathe HP<700 Final Phase trigger
+  if(u.id === 'lirathe' && u._transformed && u.hp < 700 && u.hp > 0 && !u._finalPhaseTriggered){
     u._finalPhaseTriggered = true;
     setTimeout(()=> triggerLiratheFinalPhase(), 500);
   }
@@ -5694,6 +5694,19 @@ async function triggerLiratheFinalPhase(){
   
   interactionLocked = true;
   
+  // Set Lirathe to focus mode - only use 掏心掏肺
+  lirathe._focusMode = true;
+  lirathe._guaranteeHit = true; // 100% hit rate
+  lirathe._fullDamage = true; // 100% damage output
+  
+  // Clear Lirathe's skill pool and only add 掏心掏肺
+  lirathe.skillPool = [];
+  const ripHeartSkill = skill('掏心掏肺',2,'red','前方2x2反复撕扯三次15HP/5SP+腐蚀（>5层腐蚀再重复）',
+    null, ()=> range_square_n(lirathe,1),
+    (uu,desc)=> lirathe_RipHeart(uu,desc),
+    {estimate:{damage:[45,15],notes:'3次'}, aoe:true, cellTargeting:false});
+  lirathe.skillPool.push(ripHeartSkill);
+  
   // Restore Lirathe to full HP
   lirathe.hp = lirathe.maxHp;
   lirathe.status = {}; // Clear all debuffs
@@ -5751,6 +5764,7 @@ async function triggerLiratheFinalPhase(){
   lirathe.status.stunned = 999;
   lirathe._permanentStun = true;
   appendLog('Lirathe 进入永久眩晕状态');
+  appendLog('击败眩晕的 Lirathe 以结束战斗！');
   
   // Stop spawning
   lirathe._stopSpawning = true;
@@ -6558,13 +6572,10 @@ async function enemyTurn(){
 function checkWin(){
   const lirathe = units['lirathe'];
   
-  // Lirathe's permanent stun counts as victory
-  if(lirathe && lirathe.hp>0 && lirathe._permanentStun){
-    showAccomplish();
-    return true;
-  }
+  // Lirathe must be killed even when permanently stunned
+  // Permanent stun no longer counts as automatic victory
   
-  const enemiesAlive = Object.values(units).some(u=>u.side==='enemy' && u.hp>0 && !u._permanentStun);
+  const enemiesAlive = Object.values(units).some(u=>u.side==='enemy' && u.hp>0);
   const playersAlive = Object.values(units).some(u=>u.side==='player' && u.hp>0);
   if(!enemiesAlive){ showAccomplish(); return true; }
   if(!playersAlive){ 
