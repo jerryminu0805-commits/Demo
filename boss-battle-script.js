@@ -1890,10 +1890,10 @@ function handleSpCrashIfNeeded(u){
       appendLog(`${u.name} 处于 SP 崩溃易伤：受到的伤害x1.5，直到眩晕解除且 SP 恢复`);
     }
     
-    // Lirathe Phase 2: At -80 SP, take 20 true damage and lose control
-    if(u.id === 'lirathe' && u._transformed && u.sp <= -80){
-      damageUnit(u.id, u.spZeroHpPenalty || 20, 0, `${u.name} 因 SP 跌破 -80 受到真实伤害`, null, {trueDamage: true, ignoreCover: true, ignoreJixue: true, ignoreDepend: true});
-      appendLog(`${u.name} 的 SP 跌破 -80：自动恢复至 -10`);
+    // Lirathe Phase 2: At -100 SP, take 20 true damage and lose control
+    if(u.id === 'lirathe' && u._transformed && u.sp <= -100){
+      damageUnit(u.id, u.spZeroHpPenalty || 20, 0, `${u.name} 因 SP 跌破 -100 受到真实伤害`, null, {trueDamage: true, ignoreCover: true, ignoreJixue: true, ignoreDepend: true});
+      appendLog(`${u.name} 的 SP 跌破 -100：自动恢复至 -10`);
       u.sp = -10;
       u.spPendingRestore = null;
     } else {
@@ -2275,11 +2275,11 @@ function handleUnitDeath(u, source){
     u.maxHp = 1500;
     u.hp = 1500;
     u.maxSp = 0;
-    u.sp = -10;
-    u.minSp = -80; // Lirathe Phase 2 can go to -80 SP
+    u.sp = 0;
+    u.minSp = -100; // Lirathe Phase 2 can go to -100 SP
     u.restoreOnZeroPct = 0;
     u.spZeroHpPenalty = 20;
-    u.spCrashThreshold = -80; // Changed from 0 to -80
+    u.spCrashThreshold = -100; // SP crash at -100
     u._highGround = true; // Lirathe is on high ground in phase 2
     
     // Add Phase 2 passives
@@ -5835,6 +5835,9 @@ function spawnHealingTile(){
   window._healingTiles.add(`${pos.r},${pos.c}`);
   appendLog(`小恢复格子出现在 (${pos.r},${pos.c})！`);
   renderAll();
+  
+  // Check if any player unit is already on this tile
+  checkHealingTiles();
 }
 
 function checkHealingTilesForUnit(u){
@@ -5868,6 +5871,9 @@ function createWeaknessTile(r, c){
   window._weaknessTiles.add(`${r},${c}`);
   appendLog(`软肋格子出现在 (${r},${c})！`);
   renderAll();
+  
+  // Check if any player unit is already on this tile
+  checkWeaknessTiles();
 }
 
 function checkWeaknessTilesForUnit(u){
