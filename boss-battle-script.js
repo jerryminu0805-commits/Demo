@@ -203,7 +203,7 @@ const units = {};
 // 玩家 - 旧情未了关卡
 units['karma'] = createUnit('karma','Karma','player',50, 5, 22, 200,50, 0.5,20, ['violentAddiction','toughBody','pride']);
 // Boss - Lirathe
-units['lirathe'] = createUnit('lirathe','Lirathe/利拉斯-赫雷西第五干部','enemy',50, 5, 5, 700,80, 0.75,20, ['dancerDream','achingHeart','swiftAgility','rebirth','reluctance'], {stunThreshold:4, pullImmune:true});
+units['lirathe'] = createUnit('lirathe','Lirathe/利拉斯-赫雷西第五干部','enemy',50, 5, 5, 1500,80, 0.75,20, ['dancerDream','achingHeart','swiftAgility','rebirth','reluctance'], {stunThreshold:4, pullImmune:true});
 
 // —— 范围/工具 ——
 const DIRS = { up:{dr:-1,dc:0}, down:{dr:1,dc:0}, left:{dr:0,dc:-1}, right:{dr:0,dc:1} };
@@ -243,6 +243,25 @@ function range_adjacent(u){
 }
 function range_forward_n(u,n, aimDir){ const dir=aimDir||u.facing; const arr=[]; for(let i=1;i<=n;i++){ const c=forwardCellAt(u,dir,i); if(c) arr.push({r:c.r,c:c.c,dir}); } return arr; }
 function range_line(u, aimDir){ const dir=aimDir||u.facing; return forwardLineAt(u,dir).map(p=>({r:p.r,c:p.c,dir})); }
+function range_two_rows(u, aimDir){ 
+  const dir=aimDir||u.facing; 
+  const d=DIRS[dir];
+  const arr=[];
+  // Get perpendicular direction for width
+  const perp = (dir==='up'||dir==='down') ? {dr:0,dc:1} : {dr:1,dc:0};
+  // Two rows deep
+  for(let depth=1; depth<=2; depth++){
+    const baseR = u.r + d.dr*depth;
+    const baseC = u.c + d.dc*depth;
+    // Check center and one cell on each side
+    for(let offset=-1; offset<=1; offset++){
+      const r = baseR + perp.dr*offset;
+      const c = baseC + perp.dc*offset;
+      if(clampCell(r,c)) arr.push({r,c,dir});
+    }
+  }
+  return arr;
+}
 function inRadiusCells(u, maxManhattan, {allowOccupied=false, includeSelf=true}={}){
   const res=[];
   for(let r=1;r<=ROWS;r++){
@@ -2050,10 +2069,15 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
     hpDmg = Math.round(hpDmg * 0.6);
     spDmg = Math.round(spDmg * 0.6);
   }
-  // Lirathe "退去凡躯" passive: 25% damage reduction
+  // Lirathe "退去凡躯" passive: 70% damage reduction on high ground, 35% on ground
   if(!trueDamage && u.id==='lirathe' && u._transformed && u.passives.includes('liratheShedMortal')){
-    hpDmg = Math.round(hpDmg * 0.75);
-    spDmg = Math.round(spDmg * 0.75);
+    if(u._highGround){
+      hpDmg = Math.round(hpDmg * 0.30); // 70% reduction = 30% damage taken
+      spDmg = Math.round(spDmg * 0.30);
+    } else {
+      hpDmg = Math.round(hpDmg * 0.65); // 35% reduction = 65% damage taken
+      spDmg = Math.round(spDmg * 0.65);
+    }
   }
   
   if(!trueDamage && u.passives.includes('toughBody') && !opts.ignoreToughBody){
@@ -2238,8 +2262,8 @@ function handleUnitDeath(u, source){
     u.hp = 1; // Prevent actual death
     u._transformed = true;
     u.size = 2; // Lirathe becomes 2x2 in phase 2
-    u.maxHp = 1200;
-    u.hp = 1200;
+    u.maxHp = 1500;
+    u.hp = 1500;
     u.maxSp = 0;
     u.sp = -10;
     u.minSp = -80; // Lirathe Phase 2 can go to -80 SP
@@ -3733,7 +3757,7 @@ async function lirathe_DontRun(u, desc){
 async function lirathe_ChargeKill(u, desc){
   const dir = desc && desc.dir ? desc.dir : u.facing;
   setUnitFacing(u, dir);
-  const line = range_line(u,dir);
+  const line = range_two_rows(u,dir);
   await telegraphThenImpact(line);
   
   const seen=new Set();
@@ -4465,8 +4489,8 @@ function buildSkillFactoriesForUnit(u){
     } else {
       // Lirathe Phase 2 (after transformation)
       F.push(
-        { key:'冲杀', prob:0.75, cond:()=>true, make:()=> skill('冲杀',2,'red','向前冲刺到底，撞到的敌人20HP/10SP+腐蚀，摧毁掩体',
-          (uu,aimDir)=> aimDir? range_line(uu,aimDir) : (()=>{const a=[]; for(const d in DIRS) range_line(uu,d).forEach(x=>a.push(x)); return a;})(),
+        { key:'冲杀', prob:0.75, cond:()=>true, make:()=> skill('冲杀',2,'red','向前冲刺2行，撞到的敌人20HP/10SP+腐蚀，摧毁掩体',
+          (uu,aimDir)=> aimDir? range_two_rows(uu,aimDir) : (()=>{const a=[]; for(const d in DIRS) range_two_rows(uu,d).forEach(x=>a.push(x)); return a;})(),
           (uu,desc)=> lirathe_ChargeKill(uu,desc),
           {aoe:true},
           {castMs:1200}
@@ -5414,12 +5438,6 @@ function processUnitsTurnStart(side){
     }
   }
 
-  // Check healing and weakness tiles once per turn for all player units
-  if(side==='player'){
-    checkHealingTiles();
-    checkWeaknessTiles();
-  }
-
   for(const id in units){
     const u=units[id];
     if(u.side!==side || u.hp<=0) continue;
@@ -6295,7 +6313,7 @@ async function exhaustEnemySteps(){
       if(!en.dealtStart) ensureStartHand(en);
       if(en.id==='neyla' && en.oppression) ensureNeylaEndShadowGuarantee(en);
       
-      // Lirathe climbing passive: Manage high ground based on target visibility
+      // Lirathe climbing passive: Prioritize climbing when targets are visible and not on high ground
       if(en.id === 'lirathe' && en._transformed && en.passives.includes('liratheClimbing')){
         // Check if there are visible targets
         let hasVisibleTargets = false;
@@ -6308,10 +6326,12 @@ async function exhaustEnemySteps(){
         }
         
         if(hasVisibleTargets && !en._highGround){
-          // Try to climb when there are visible targets
+          // PRIORITY: Try to climb when there are visible targets
           if(tryLiratheClimbing(en)){
             progressedThisRound = true;
             await aiAwait(300);
+            // After climbing, skip to next unit to prioritize climbing action
+            continue;
           }
         } else if(!hasVisibleTargets && en._highGround){
           // Descend when no visible targets (return to random mode)
