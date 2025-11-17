@@ -163,6 +163,8 @@ function createUnit(id, name, side, level, r, c, maxHp, maxSp, restoreOnZeroPct,
       agileStacks: 0,            // "灵活"Buff 层数（让敌方30%几率miss，miss消耗一层）
       affirmationStacks: 0,      // "肯定"Buff 层数（免疫一次SP伤害，多阶段攻击全阶段免疫，消耗一层）
       seenStacks: 0,             // "看见"Buff 层数（让Lirathe看得到该单位，下回合结束后减少一层）
+      seenStacksAppliedRound: -1, // Track which round seenStacks was last applied
+      seenStacksAppliedSide: null, // Track which side's turn it was applied ('player' or 'enemy')
       exposedStacks: 0,          // "暴露"Buff 层数（移动超过5格时触发，让Lirathe看得到该单位）
       mockeryStacks: 0,          // "戏谑"Buff 层数（下一次攻击命中后，给自己上2层灵活和1层暴力，消耗一层戏谑）
       violenceStacks: 0,         // "暴力"Buff 层数（增加攻击伤害）
@@ -3811,6 +3813,8 @@ async function lirathe_WhereAreYou(u){
       updateStatusStacks(tu,'corrosionStacks',tu.status.corrosionStacks,{label:'腐蚀',type:'debuff'});
       // Add "seen" buff for Lirathe to see the unit
       tu.status.seenStacks = 1;
+      tu.status.seenStacksAppliedRound = roundsPassed;
+      tu.status.seenStacksAppliedSide = currentSide;
       updateStatusStacks(tu,'seenStacks',tu.status.seenStacks,{label:'看见',type:'debuff'});
       seen.add(tu.id);
     }
@@ -5609,10 +5613,17 @@ function processUnitsTurnEnd(side){
     const u = units[id];
     if(u.side !== side || u.hp <= 0) continue;
     if(u.status.seenStacks && u.status.seenStacks > 0){
-      u.status.seenStacks = Math.max(0, u.status.seenStacks - 1);
-      updateStatusStacks(u,'seenStacks',u.status.seenStacks,{label:'看见',type:'debuff'});
-      if(u.status.seenStacks === 0){
-        appendLog(`${u.name} 的"看见"状态消失`);
+      // Only decrement if:
+      // 1. It's the same side's turn end as when it was applied, AND
+      // 2. It's NOT the same round (i.e., at least one round has passed)
+      // This ensures it lasts until the end of the NEXT turn of the same side
+      const shouldDecrement = (side === u.status.seenStacksAppliedSide && roundsPassed > u.status.seenStacksAppliedRound);
+      if(shouldDecrement){
+        u.status.seenStacks = Math.max(0, u.status.seenStacks - 1);
+        updateStatusStacks(u,'seenStacks',u.status.seenStacks,{label:'看见',type:'debuff'});
+        if(u.status.seenStacks === 0){
+          appendLog(`${u.name} 的"看见"状态消失`);
+        }
       }
     }
   }
