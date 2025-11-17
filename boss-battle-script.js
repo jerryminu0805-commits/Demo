@@ -249,16 +249,24 @@ function range_two_rows(u, aimDir){
   const arr=[];
   // Get perpendicular direction for width
   const perp = (dir==='up'||dir==='down') ? {dr:0,dc:1} : {dr:1,dc:0};
-  // Two rows deep
-  for(let depth=1; depth<=2; depth++){
+  // Two rows wide, all the way to the end of the map
+  let depth=1;
+  while(true){
     const baseR = u.r + d.dr*depth;
     const baseC = u.c + d.dc*depth;
-    // Check center and one cell on each side
+    let anyValid = false;
+    // Check center and one cell on each side (3 cells wide)
     for(let offset=-1; offset<=1; offset++){
       const r = baseR + perp.dr*offset;
       const c = baseC + perp.dc*offset;
-      if(clampCell(r,c)) arr.push({r,c,dir});
+      if(clampCell(r,c)){
+        arr.push({r,c,dir});
+        anyValid = true;
+      }
     }
+    // If no cells are valid at this depth, stop
+    if(!anyValid) break;
+    depth++;
   }
   return arr;
 }
@@ -4790,13 +4798,17 @@ function placeUnits(){
     const hpPct = Math.max(0, Math.min(100, (u.hp/u.maxHp*100)||0));
     
     // Handle negative SP for units like Lirathe Phase 2 (SP from -80 to 0)
+    // INVERTED: Lower SP = Higher purple bar (full bar at -80)
     let spPct = 0;
     let spBarColor = '#40a9ff'; // Default blue
     if(u.maxSp > 0){
       spPct = Math.max(0, Math.min(100, (u.sp/u.maxSp*100)));
     } else if(u.minSp !== undefined && u.minSp < 0 && u.sp < 0){
-      // Negative SP bar: calculate percentage from minSp to 0
-      spPct = Math.max(0, Math.min(100, ((u.sp - u.minSp) / (0 - u.minSp) * 100)));
+      // Inverted negative SP bar: lower SP = higher bar
+      // e.g., if minSp=-80, sp=-80, then percentage = 100% (full)
+      // if minSp=-80, sp=-40, then percentage = 50%
+      // if minSp=-80, sp=0, then percentage = 0%
+      spPct = Math.max(0, Math.min(100, ((0 - u.sp) / (0 - u.minSp) * 100)));
       spBarColor = '#9254de'; // Purple for negative SP
     }
     
@@ -4859,14 +4871,17 @@ function renderLargeUnitOverlay(u){
   const hpPct = Math.max(0, Math.min(100, (u.hp/u.maxHp*100)||0));
   
   // Handle negative SP for units like Lirathe Phase 2 (SP from -80 to 0)
+  // INVERTED: Lower SP = Higher purple bar (full bar at -80)
   let spPct = 0;
   let spBarColor = '#40a9ff'; // Default blue
   if(u.maxSp > 0){
     spPct = Math.max(0, Math.min(100, (u.sp/u.maxSp*100)));
   } else if(u.minSp !== undefined && u.minSp < 0 && u.sp < 0){
-    // Negative SP bar: calculate percentage from minSp to 0
-    // e.g., if minSp=-80, sp=-40, then percentage = ((-40) - (-80)) / (0 - (-80)) = 40/80 = 50%
-    spPct = Math.max(0, Math.min(100, ((u.sp - u.minSp) / (0 - u.minSp) * 100)));
+    // Inverted negative SP bar: lower SP = higher bar
+    // e.g., if minSp=-80, sp=-80, then percentage = 100% (full)
+    // if minSp=-80, sp=-40, then percentage = 50%
+    // if minSp=-80, sp=0, then percentage = 0%
+    spPct = Math.max(0, Math.min(100, ((0 - u.sp) / (0 - u.minSp) * 100)));
     spBarColor = '#9254de'; // Purple for negative SP
   }
 
@@ -5500,11 +5515,14 @@ function processUnitsTurnStart(side){
       appendLog(`${u.name} 的“恢复”触发：+5HP（剩余 ${u.status.recoverStacks}）`);
     }
 
-    // Bleed: 5% max HP damage per turn (flat, regardless of stack count), consume 0.5 stacks
+    // Bleed: Fixed 5 HP damage per stack per turn, consume 1 stack
     if(u.status.bleed && u.status.bleed>0){
-      const bleedDmg = Math.max(1, Math.floor(u.maxHp*0.05));
-      damageUnit(u.id, bleedDmg, 0, `${u.name} 因流血受损 (5% 固定)`, null);
-      u.status.bleed = Math.max(0, u.status.bleed - 0.5);
+      // Lirathe has bleed resistance: 5 HP per stack instead of 5% HP
+      const isLirathe = u.id === 'lirathe';
+      const bleedDmg = isLirathe ? Math.max(1, u.status.bleed * 5) : Math.max(1, Math.floor(u.maxHp*0.05));
+      const dmgDesc = isLirathe ? `${u.name} 因流血受损 (5HP/层)` : `${u.name} 因流血受损 (5% 固定)`;
+      damageUnit(u.id, bleedDmg, 0, dmgDesc, null);
+      u.status.bleed = Math.max(0, u.status.bleed - 1);
       updateStatusStacks(u,'bleed', u.status.bleed, {label:'流血', type:'debuff'});
     }
     
@@ -6386,8 +6404,8 @@ async function exhaustEnemySteps(){
 
     // 整轮无人动作 → 强行消步直到 0（防止卡住）
     if(!progressedThisRound){
-      // 尝试对一个可移动单位强制朝集合点靠拢
-      const anyMovable = enemyLivingEnemies().find(e=> canUnitMove(e) && neighborsOf(e, e.r, e.c).some(p=>!getUnitAt(p.r,p.c)));
+      // 尝试对一个可移动单位强制朝集合点靠拢（排除 Lirathe）
+      const anyMovable = enemyLivingEnemies().find(e=> e.id !== 'lirathe' && canUnitMove(e) && neighborsOf(e, e.r, e.c).some(p=>!getUnitAt(p.r,p.c)));
       if(anyMovable){
         const rally = computeRallyPoint();
         const mv = tryStepsToward(anyMovable, rally);
