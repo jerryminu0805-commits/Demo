@@ -4032,24 +4032,25 @@ function findWallPathBFS(lirathe, visibleTargets){
     lirathe.c = oldC;
     
     // Explore adjacent wall cells
+    // Temporarily move to current position to get correct adjacent cells
+    lirathe.r = current.r;
+    lirathe.c = current.c;
     const adj = range_adjacent(lirathe);
+    
     for(const pos of adj){
       const key = `${pos.r},${pos.c}`;
       if(visited.has(key)) continue;
-      
-      // Temporarily move to check if this position is valid
-      lirathe.r = current.r;
-      lirathe.c = current.c;
       
       if(canLiratheMoveOnHighGround(lirathe, pos.r, pos.c)){
         visited.add(key);
         const newPath = current.path.concat([{r: pos.r, c: pos.c, dir: pos.dir}]);
         queue.push({r: pos.r, c: pos.c, path: newPath});
       }
-      
-      lirathe.r = oldR;
-      lirathe.c = oldC;
     }
+    
+    // Restore original position
+    lirathe.r = oldR;
+    lirathe.c = oldC;
   }
   
   // If no attacking position found, return the path that gets closest to targets
