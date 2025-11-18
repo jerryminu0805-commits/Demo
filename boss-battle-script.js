@@ -4680,8 +4680,8 @@ function buildSkillFactoriesForUnit(u){
           {aoe:true},
           {castMs:2400}
         )},
-        // Special skill: "I See You" - teleport to nearest wall (0 cost, doesn't appear in pool, only usable with visible targets)
-        { key:'看见你了', prob:0, cond:()=>true, make:()=> skill('看见你了',0,'blue','瞬移到离自己最近的墙边',
+        // Special skill: "I See You" - move along wall toward visible targets (0 cost, doesn't appear in pool, only usable with visible targets)
+        { key:'看见你了', prob:0, cond:()=>true, make:()=> skill('看见你了',0,'blue','沿墙移动接近有"看见"或"暴露"的目标',
           (uu)=>[{r:uu.r,c:uu.c,dir:uu.facing}],
           (uu)=> lirathe_ISeeYou(uu),
           {aoe:false},
@@ -6391,7 +6391,7 @@ function buildSkillCandidates(en){
     // Special: Add "看见你了" skill when Lirathe has visible targets and is on high ground
     if(hasVisibleTargets && en._highGround && en.id === 'lirathe' && en._transformed){
       // Create the "看见你了" skill dynamically
-      const iSeeYouSkill = skill('看见你了',0,'blue','瞬移到离自己最近的墙边',
+      const iSeeYouSkill = skill('看见你了',0,'blue','沿墙移动接近有"看见"或"暴露"的目标',
         (uu)=>[{r:uu.r,c:uu.c,dir:uu.facing}],
         (uu)=> lirathe_ISeeYou(uu),
         {aoe:false},
