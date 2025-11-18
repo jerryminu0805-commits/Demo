@@ -5093,6 +5093,106 @@ function canLiratheSeeTarget(lirathe, target){
   return false; // Cannot see this target
 }
 
+// Helper function to check if Lirathe can hit a target from current position in any direction
+function canLiratheHitTarget(lirathe, target){
+  if(!lirathe || !target || target.hp <= 0) return null;
+  if(!lirathe.skillPool || lirathe.skillPool.length === 0) return null;
+  
+  // Check each skill and direction to see if we can hit the target
+  for(const sk of lirathe.skillPool){
+    if(sk.cost > enemySteps) continue;
+    
+    // Try all 4 directions
+    for(const dirName of Object.keys(DIRS)){
+      try{
+        const cells = sk.rangeFn ? sk.rangeFn(lirathe, dirName, null) : [];
+        for(const cell of cells){
+          if(unitCoversCell(target, cell.r, cell.c)){
+            return {skill: sk, dir: dirName, target: target};
+          }
+        }
+      } catch(e){
+        // Skip skills that error
+      }
+    }
+  }
+  return null;
+}
+
+// Helper function to find next wall-adjacent move towards visible targets
+function findWallPathToVisibleTarget(lirathe){
+  if(!lirathe || !lirathe._highGround) return null;
+  
+  // Get all visible targets
+  const visibleTargets = [];
+  for(const id in units){
+    const u = units[id];
+    if(u && u.hp > 0 && u.side === 'player' && canLiratheSeeTarget(lirathe, u)){
+      visibleTargets.push(u);
+    }
+  }
+  
+  if(visibleTargets.length === 0) return null;
+  
+  // Get valid wall-adjacent moves
+  const adj = range_adjacent(lirathe);
+  const validMoves = [];
+  for(const pos of adj){
+    if(canLiratheMoveOnHighGround(lirathe, pos.r, pos.c)){
+      validMoves.push(pos);
+    }
+  }
+  
+  if(validMoves.length === 0) return null;
+  
+  // For each valid move, check if it gets us closer to being able to attack any visible target
+  let bestMove = null;
+  let bestScore = -999;
+  
+  for(const move of validMoves){
+    // Simulate being at this position
+    const oldR = lirathe.r, oldC = lirathe.c;
+    lirathe.r = move.r;
+    lirathe.c = move.c;
+    
+    // Check if we can attack any visible target from this position
+    let canAttackFromHere = false;
+    for(const target of visibleTargets){
+      const hitInfo = canLiratheHitTarget(lirathe, target);
+      if(hitInfo){
+        canAttackFromHere = true;
+        break;
+      }
+    }
+    
+    // If we can attack from here, prioritize this move highly
+    if(canAttackFromHere){
+      lirathe.r = oldR;
+      lirathe.c = oldC;
+      return move;
+    }
+    
+    // Otherwise, score based on distance to nearest visible target
+    let minDist = 999;
+    for(const target of visibleTargets){
+      const dist = mdist({r: move.r, c: move.c}, target);
+      if(dist < minDist) minDist = dist;
+    }
+    
+    const score = -minDist; // Negative so closer is better
+    if(score > bestScore){
+      bestScore = score;
+      bestMove = move;
+    }
+    
+    // Restore position
+    lirathe.r = oldR;
+    lirathe.c = oldC;
+  }
+  
+  return bestMove;
+}
+
 function showDistanceDisplay(r, c, distance){
   clearDistanceDisplay();
   ensureFxLayer();
@@ -6315,7 +6415,33 @@ function stepTowardNearestPlayer(en){
   
   // Special handling for Lirathe on high ground
   if(en.id === 'lirathe' && en._transformed && en._highGround){
-    // Can only move along walls
+    // Check for visible targets first
+    let hasVisibleTargets = false;
+    const visibleTargets = [];
+    for(const id in units){
+      const u = units[id];
+      if(u && u.hp > 0 && u.side === 'player' && canLiratheSeeTarget(en, u)){
+        hasVisibleTargets = true;
+        visibleTargets.push(u);
+      }
+    }
+    
+    // If there are visible targets, use smart wall pathfinding
+    if(hasVisibleTargets){
+      const wallMove = findWallPathToVisibleTarget(en);
+      if(wallMove){
+        setUnitFacing(en, wallMove.dir || en.facing);
+        en.r = wallMove.r; en.c = wallMove.c;
+        enemySteps = Math.max(0, enemySteps - 1);
+        updateStepsUI();
+        cameraFocusOnCell(en.r,en.c);
+        renderAll();
+        appendLog(`${en.name} 在高处沿墙移动，接近可见目标`);
+        return true;
+      }
+    }
+    
+    // Fallback: move along walls randomly
     const adj = range_adjacent(en);
     const validMoves = [];
     for(const pos of adj){
@@ -6404,29 +6530,31 @@ async function exhaustEnemySteps(){
       if(!en.dealtStart) ensureStartHand(en);
       if(en.id==='neyla' && en.oppression) ensureNeylaEndShadowGuarantee(en);
       
-      // Lirathe climbing passive: Prioritize climbing when targets are visible and not on high ground
+      // Lirathe Phase 2 AI: High Ground Priority + Wall-Hugging Attack Strategy
       if(en.id === 'lirathe' && en._transformed && en.passives.includes('liratheClimbing') && !en.status.stunned){
         // Check if there are visible targets
         let hasVisibleTargets = false;
+        const visibleTargets = [];
         for(const id in units){
           const u = units[id];
           if(u && u.hp > 0 && u.side === 'player' && canLiratheSeeTarget(en, u)){
             hasVisibleTargets = true;
-            break;
+            visibleTargets.push(u);
           }
         }
         
+        // PHASE 2 AI LOGIC:
+        // 1. If visible targets exist and not on high ground, prioritize climbing
         if(hasVisibleTargets && !en._highGround){
-          // PRIORITY: Try to climb when there are visible targets
+          // PRIORITY 1: Try to climb when there are visible targets
           if(tryLiratheClimbing(en)){
             progressedThisRound = true;
             await aiAwait(300);
-            // After climbing, continue to skill execution (don't skip)
-            // Note: Removed 'continue' so Lirathe can attack in the same turn after climbing
+            // After climbing, continue to next phase (movement/attack)
           }
           
           // If can't climb immediately, try to move towards a wall to climb next turn
-          if(enemySteps > 0 && canUnitMove(en)){
+          if(!en._highGround && enemySteps > 0 && canUnitMove(en)){
             const adj = range_adjacent(en);
             // Look for moves that get us closer to a wall
             const movesTowardWall = adj.filter(pos => {
@@ -6450,20 +6578,50 @@ async function exhaustEnemySteps(){
               updateStepsUI();
               cameraFocusOnCell(en.r, en.c);
               renderAll();
-              appendLog(`${en.name} 拼尽全力试图靠近墙壁以爬上高处`);
+              appendLog(`${en.name} 移动到墙边准备攀爬`);
               progressedThisRound = true;
               await aiAwait(300);
               // Try to climb again after moving
               if(tryLiratheClimbing(en)){
                 progressedThisRound = true;
                 await aiAwait(300);
-                // After climbing, allow skill execution to proceed (don't skip)
               }
-              // Removed 'continue' - now Lirathe can attack after moving/climbing
             }
           }
-        } else if(!hasVisibleTargets && en._highGround){
-          // Descend when no visible targets (return to random mode)
+        }
+        
+        // 2. If on high ground with visible targets, check if we can attack or need to move
+        if(hasVisibleTargets && en._highGround){
+          // Check if we can already attack any visible target from current position
+          let canAttackNow = false;
+          for(const target of visibleTargets){
+            const hitInfo = canLiratheHitTarget(en, target);
+            if(hitInfo){
+              canAttackNow = true;
+              break;
+            }
+          }
+          
+          // PRIORITY 2: If we can't attack from current position, move along walls towards targets
+          if(!canAttackNow && enemySteps > 0 && canUnitMove(en)){
+            const wallMove = findWallPathToVisibleTarget(en);
+            if(wallMove){
+              setUnitFacing(en, wallMove.dir || en.facing);
+              en.r = wallMove.r; en.c = wallMove.c;
+              enemySteps = Math.max(0, enemySteps - 1);
+              updateStepsUI();
+              cameraFocusOnCell(en.r, en.c);
+              renderAll();
+              appendLog(`${en.name} 在高处沿墙移动，寻找攻击角度`);
+              progressedThisRound = true;
+              await aiAwait(300);
+            }
+          }
+          // If can attack or after moving, proceed to skill execution phase
+        }
+        
+        // 3. If no visible targets and on high ground, descend
+        if(!hasVisibleTargets && en._highGround){
           en._highGround = false;
           appendLog(`${en.name} 失去视线：从高处下来，回到随机攻击模式`);
           showStatusFloat(en,'下地',{type:'info'});
