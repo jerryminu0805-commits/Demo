@@ -3935,42 +3935,125 @@ async function lirathe_ISeeYou(u){
     return unitActed(u);
   }
   
-  // Find nearest wall cell
-  let nearestWall = null;
-  let minDist = 999;
-  
-  for(let r=1; r<=ROWS; r++){
-    for(let c=1; c<=COLS; c++){
-      // Check if this position is adjacent to a wall
-      if(isAdjacentToWall(r, c)){
-        // Check if the position is valid and unoccupied
-        if(clampCell(r, c) && !getUnitAt(r, c)){
-          const dist = mdist(u, {r, c});
-          if(dist < minDist){
-            minDist = dist;
-            nearestWall = {r, c};
-          }
-        }
-      }
+  // Find visible targets with "seen" or "exposed" status
+  const visibleTargets = [];
+  for(const id in units){
+    const target = units[id];
+    if(target && target.hp > 0 && target.side === 'player' && canLiratheSeeTarget(u, target)){
+      visibleTargets.push(target);
     }
   }
   
-  if(!nearestWall){
-    appendLog(`${u.name} 看见你了失败：找不到可用的墙边位置`);
+  if(visibleTargets.length === 0){
+    appendLog(`${u.name} 看见你了失败：没有可见的目标`);
     return unitActed(u);
   }
   
-  // Teleport to the nearest wall
-  const oldR = u.r, oldC = u.c;
-  u.r = nearestWall.r;
-  u.c = nearestWall.c;
+  // Use BFS to find a path along walls toward the nearest visible target
+  const path = findWallPathBFS(u, visibleTargets);
   
-  // Show visual effect
-  showTrail(oldR, oldC, u.r, u.c);
-  appendLog(`${u.name} 看见你了！瞬移到最近的墙边 (${u.r},${u.c})`);
+  if(!path || path.length === 0){
+    appendLog(`${u.name} 看见你了失败：无法找到沿墙路径`);
+    return unitActed(u);
+  }
+  
+  // Move step-by-step along the wall path with animation
+  const oldR = u.r, oldC = u.c;
+  appendLog(`${u.name} 看见你了！沿墙移动接近目标...`);
+  
+  for(let i = 0; i < path.length; i++){
+    const step = path[i];
+    u.r = step.r;
+    u.c = step.c;
+    setUnitFacing(u, step.dir || u.facing);
+    
+    // Show visual feedback for each step
+    cameraFocusOnCell(u.r, u.c);
+    renderAll();
+    
+    // Pause between steps to show movement
+    await aiAwait(200);
+  }
+  
+  appendLog(`${u.name} 沿墙移动了 ${path.length} 步，从 (${oldR},${oldC}) 到 (${u.r},${u.c})`);
   
   renderAll();
   unitActed(u);
+}
+
+// BFS pathfinding along walls toward visible targets
+function findWallPathBFS(lirathe, visibleTargets){
+  if(!lirathe || !lirathe._highGround || visibleTargets.length === 0) return null;
+  
+  // BFS to find shortest wall-adjacent path to any visible target
+  const queue = [{r: lirathe.r, c: lirathe.c, path: []}];
+  const visited = new Set();
+  visited.add(`${lirathe.r},${lirathe.c}`);
+  
+  let bestPath = null;
+  let bestScore = -999;
+  const maxSteps = 10; // Limit search depth
+  
+  while(queue.length > 0){
+    const current = queue.shift();
+    
+    // If we've explored too far, continue to next node
+    if(current.path.length >= maxSteps) continue;
+    
+    // Check if we can attack any visible target from current position
+    const oldR = lirathe.r, oldC = lirathe.c;
+    lirathe.r = current.r;
+    lirathe.c = current.c;
+    
+    let canAttack = false;
+    let closestDist = 999;
+    for(const target of visibleTargets){
+      const hitInfo = canLiratheHitTarget(lirathe, target);
+      if(hitInfo){
+        canAttack = true;
+        // If we found an attacking position, return this path immediately
+        lirathe.r = oldR;
+        lirathe.c = oldC;
+        return current.path;
+      }
+      // Track closest distance to any target
+      const dist = mdist({r: current.r, c: current.c}, target);
+      if(dist < closestDist) closestDist = dist;
+    }
+    
+    // Score based on distance to closest target
+    const score = -closestDist + current.path.length * 0.1; // Prefer shorter paths slightly
+    if(score > bestScore){
+      bestScore = score;
+      bestPath = current.path.slice();
+    }
+    
+    lirathe.r = oldR;
+    lirathe.c = oldC;
+    
+    // Explore adjacent wall cells
+    const adj = range_adjacent(lirathe);
+    for(const pos of adj){
+      const key = `${pos.r},${pos.c}`;
+      if(visited.has(key)) continue;
+      
+      // Temporarily move to check if this position is valid
+      lirathe.r = current.r;
+      lirathe.c = current.c;
+      
+      if(canLiratheMoveOnHighGround(lirathe, pos.r, pos.c)){
+        visited.add(key);
+        const newPath = current.path.concat([{r: pos.r, c: pos.c, dir: pos.dir}]);
+        queue.push({r: pos.r, c: pos.c, path: newPath});
+      }
+      
+      lirathe.r = oldR;
+      lirathe.c = oldC;
+    }
+  }
+  
+  // If no attacking position found, return the path that gets closest to targets
+  return bestPath && bestPath.length > 0 ? bestPath : null;
 }
 
 // Consciousness Flower skill
