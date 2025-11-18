@@ -205,7 +205,7 @@ const units = {};
 // 玩家 - 旧情未了关卡
 units['karma'] = createUnit('karma','Karma','player',50, 5, 22, 200,50, 0.5,20, ['violentAddiction','toughBody','pride']);
 // Boss - Lirathe
-units['lirathe'] = createUnit('lirathe','Lirathe/利拉斯-赫雷西第五干部','enemy',50, 5, 5, 1500,80, 0.75,20, ['dancerDream','achingHeart','swiftAgility','rebirth','reluctance'], {stunThreshold:4, pullImmune:true});
+units['lirathe'] = createUnit('lirathe','Lirathe/利拉斯-赫雷西第五干部','enemy',50, 5, 5, 700,80, 0.75,20, ['dancerDream','achingHeart','swiftAgility','rebirth','reluctance'], {stunThreshold:4, pullImmune:true});
 
 // —— 范围/工具 ——
 const DIRS = { up:{dr:-1,dc:0}, down:{dr:1,dc:0}, left:{dr:0,dc:-1}, right:{dr:0,dc:1} };
@@ -1893,10 +1893,22 @@ function applyStunOrStack(target, layers=1, {reason='', bypass=false}={}){
 }
 function handleSpCrashIfNeeded(u){
   if(!u || u.hp<=0) return;
-  
+
   // Skip SP crash handling for units with maxSp=0 (like consciousness flower)
   if(u.maxSp === 0) return;
-  
+
+  // Lirathe Phase 1: SP掉到0时受到20点真实伤害、眩晕1回合、下回合恢复至75SP并扣减一步
+  if(u.id === 'lirathe' && !u._transformed && u.sp <= 0 && !u._spBroken){
+    u._spBroken = true;
+    applyStunOrStack(u, 1, {bypass:true, reason:'SP枯竭'});
+    const hpPenalty = u.spZeroHpPenalty || 20;
+    damageUnit(u.id, hpPenalty, 0, `${u.name} 因 SP 枯竭受到真实伤害`, null, {trueDamage: true, ignoreCover: true, ignoreJixue: true, ignoreDepend: true});
+    if(u.side==='player'){ playerSteps = Math.max(0, playerSteps - 1); } else { enemySteps = Math.max(0, enemySteps - 1); }
+    u.spPendingRestore = 75;
+    appendLog(`${u.name} 的 SP 枯竭：眩晕1回合，下个己方回合自动恢复至 75`);
+    return;
+  }
+
   const spCrashThreshold = u.spCrashThreshold !== undefined ? u.spCrashThreshold : 0;
   if(u.sp <= spCrashThreshold && !u._spBroken){
     u._spBroken = true;
@@ -2274,8 +2286,8 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
     u._lastDamagedRound = roundsPassed;
   }
   
-  // Lirathe HP<700 Final Phase trigger
-  if(u.id === 'lirathe' && u._transformed && u.hp < 700 && u.hp > 0 && !u._finalPhaseTriggered){
+  // Lirathe HP<400 Final Phase trigger
+  if(u.id === 'lirathe' && u._transformed && u.hp < 400 && u.hp > 0 && !u._finalPhaseTriggered){
     u._finalPhaseTriggered = true;
     setTimeout(()=> triggerLiratheFinalPhase(), 500);
   }
