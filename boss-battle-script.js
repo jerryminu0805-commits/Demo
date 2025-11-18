@@ -6421,8 +6421,8 @@ async function exhaustEnemySteps(){
           if(tryLiratheClimbing(en)){
             progressedThisRound = true;
             await aiAwait(300);
-            // After climbing, skip to next unit to prioritize climbing action
-            continue;
+            // After climbing, continue to skill execution (don't skip)
+            // Note: Removed 'continue' so Lirathe can attack in the same turn after climbing
           }
           
           // If can't climb immediately, try to move towards a wall to climb next turn
@@ -6457,8 +6457,9 @@ async function exhaustEnemySteps(){
               if(tryLiratheClimbing(en)){
                 progressedThisRound = true;
                 await aiAwait(300);
+                // After climbing, allow skill execution to proceed (don't skip)
               }
-              continue;
+              // Removed 'continue' - now Lirathe can attack after moving/climbing
             }
           }
         } else if(!hasVisibleTargets && en._highGround){
