@@ -6860,17 +6860,11 @@ async function exhaustEnemySteps(){
           // If can't climb immediately, try to move towards a wall to climb next turn
           if(!en._highGround && enemySteps > 0 && canUnitMove(en)){
             const adj = range_adjacent(en);
-            // Look for moves that get us closer to a wall
+            // Look for moves that get us closer to a wall (including map edges)
             const movesTowardWall = adj.filter(pos => {
               if(getUnitAt(pos.r, pos.c)) return false; // Occupied
-              // Check if this position is adjacent to a wall
-              const adjToPos = [{dr:-1,dc:0}, {dr:1,dc:0}, {dr:0,dc:-1}, {dr:0,dc:1}];
-              for(const d of adjToPos){
-                if(isCoverCell(pos.r + d.dr, pos.c + d.dc)){
-                  return true;
-                }
-              }
-              return false;
+              // Check if this position is adjacent to a wall or map edge
+              return isAdjacentToWall(pos.r, pos.c);
             });
             
             if(movesTowardWall.length > 0){
@@ -6946,10 +6940,21 @@ async function exhaustEnemySteps(){
       // 1) 尝试技能
       let didAct = false;
       
-      // Lirathe Phase 2: Only attack when on high ground
+      // Lirathe Phase 2: Can use "看见你了" (teleport) skill even when not on high ground
+      // Only skip normal attack skills when not on high ground
       if(en.id === 'lirathe' && en._transformed && !en._highGround){
-        // Not on high ground - skip attack phase, will try to climb instead
-        aiLog(en, 'Phase 2: Not on high ground, skipping attack phase');
+        // Not on high ground - can use movement/utility skills but not attack skills
+        const candidates = buildSkillCandidates(en);
+        if(candidates.length > 0){
+          // Filter to only include non-attack skills (like "看见你了")
+          const movementSkills = candidates.filter(c => c.sk.name === '看见你了');
+          if(movementSkills.length > 0){
+            didAct = await execEnemySkillCandidate(en, movementSkills[0]);
+            if(didAct) progressedThisRound = true;
+          } else {
+            aiLog(en, 'Phase 2: Not on high ground, skipping attack phase');
+          }
+        }
       } else if(en.passives && en.passives.includes('limitedAction') && (en.actionsThisTurn||0) >= 1){
         aiLog(en,'limitedAction: 本回合已使用技能，跳过');
       } else {
