@@ -6615,18 +6615,30 @@ async function exhaustEnemySteps(){
           }
           
           // PRIORITY 2: If we can't attack from current position, move along walls towards targets
+          // But only move if we'll still have enough steps to attack after moving
           if(!canAttackNow && enemySteps > 0 && canUnitMove(en)){
-            const wallMove = findWallPathToVisibleTarget(en);
-            if(wallMove){
-              setUnitFacing(en, wallMove.dir || en.facing);
-              en.r = wallMove.r; en.c = wallMove.c;
-              enemySteps = Math.max(0, enemySteps - 1);
-              updateStepsUI();
-              cameraFocusOnCell(en.r, en.c);
-              renderAll();
-              appendLog(`${en.name} 在高处沿墙移动，寻找攻击角度`);
-              progressedThisRound = true;
-              await aiAwait(300);
+            // Check if we have any affordable skills (minimum cost of any skill in pool)
+            let minSkillCost = 999;
+            if(en.skillPool && en.skillPool.length > 0){
+              for(const sk of en.skillPool){
+                if(sk.cost < minSkillCost) minSkillCost = sk.cost;
+              }
+            }
+            
+            // Only move if we'll have enough steps left to use the cheapest skill
+            if(enemySteps > minSkillCost){
+              const wallMove = findWallPathToVisibleTarget(en);
+              if(wallMove){
+                setUnitFacing(en, wallMove.dir || en.facing);
+                en.r = wallMove.r; en.c = wallMove.c;
+                enemySteps = Math.max(0, enemySteps - 1);
+                updateStepsUI();
+                cameraFocusOnCell(en.r, en.c);
+                renderAll();
+                appendLog(`${en.name} 在高处沿墙移动，寻找攻击角度`);
+                progressedThisRound = true;
+                await aiAwait(300);
+              }
             }
           }
           // If can attack or after moving, proceed to skill execution phase
