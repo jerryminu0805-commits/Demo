@@ -5175,10 +5175,12 @@ function tryLiratheClimbing(u){
   if(!u.passives.includes('liratheClimbing')) return false;
   if(u._highGround) return false; // Already on high ground
   
-  // Check for adjacent walls (cover cells)
+  // Check for adjacent walls (cover cells or map edges)
   const adj = range_adjacent(u);
   for(const pos of adj){
-    if(isCoverCell(pos.r, pos.c)){
+    // Check if adjacent to cover cell or map edge
+    const isAtEdge = (pos.r === 1 || pos.r === ROWS || pos.c === 1 || pos.c === COLS);
+    if(isCoverCell(pos.r, pos.c) || isAtEdge){
       // Found a wall, climb it!
       u._highGround = true;
       appendLog(`${u.name} 触发"攀爬"被动：爬上墙壁进入高处状态！`);
@@ -5193,7 +5195,13 @@ function tryLiratheClimbing(u){
 function isAdjacentToWall(r, c){
   const directions = [{dr:-1,dc:0}, {dr:1,dc:0}, {dr:0,dc:-1}, {dr:0,dc:1}];
   for(const d of directions){
-    if(isCoverCell(r + d.dr, c + d.dc)){
+    const checkR = r + d.dr;
+    const checkC = c + d.dc;
+    // Map edges are also considered walls
+    if(checkR < 1 || checkR > ROWS || checkC < 1 || checkC > COLS){
+      return true;
+    }
+    if(isCoverCell(checkR, checkC)){
       return true;
     }
   }
@@ -5207,13 +5215,8 @@ function canLiratheMoveOnHighGround(u, targetR, targetC){
   // Must be adjacent to current position
   if(Math.abs(targetR - u.r) + Math.abs(targetC - u.c) !== 1) return false;
   
-  // Target position must be adjacent to a wall
+  // Target position must be adjacent to a wall (map edges are also walls)
   if(!isAdjacentToWall(targetR, targetC)){
-    return false;
-  }
-  
-  // Cannot move to map edges when on high ground
-  if(targetR === 1 || targetR === ROWS || targetC === 1 || targetC === COLS){
     return false;
   }
   
