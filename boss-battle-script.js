@@ -1552,6 +1552,14 @@ function updateStatusStacks(u,key,next,{label,type='buff', offsetY=-72}={}){
 }
 function addStatusStacks(u,key,delta,opts){
   if(!u || !u.status || !delta) return (u && u.status) ? (u.status[key] || 0) : 0;
+  
+  // High ground immunity for Lirathe: dodges bleed and other status effect stacks when on high ground
+  if(u.id === 'lirathe' && u._transformed && u._highGround && key === 'bleed'){
+    appendLog(`${u.name} 在高处：闪避流血层数叠加！`);
+    showStatusFloat(u,'闪避',{type:'buff', offsetY:-48});
+    return u.status[key] || 0;
+  }
+  
   const prev = u.status[key] || 0;
   return updateStatusStacks(u,key, prev + delta, opts);
 }
@@ -1859,6 +1867,14 @@ async function stageMark(cells){
 // —— 叠层眩晕 & SP 崩溃 —— 
 function applyStunOrStack(target, layers=1, {reason='', bypass=false}={}){
   const u = target; if(!u || u.hp<=0) return;
+  
+  // High ground immunity for Lirathe: dodges stun stacks when on high ground
+  if(u.id === 'lirathe' && u._transformed && u._highGround){
+    appendLog(`${u.name} 在高处：闪避眩晕层数叠加！`);
+    showStatusFloat(u,'闪避',{type:'buff', offsetY:-48});
+    return;
+  }
+  
   if(bypass){
     const next = Math.max(1, (u.status.stunned||0) + 1);
     updateStatusStacks(u,'stunned', next, {label:'眩晕', type:'debuff'});
@@ -1960,12 +1976,6 @@ function calcOutgoingDamage(attacker, baseDmg, target, skillName){
   if(attacker.id==='haz' && attacker.hp <= attacker.maxHp/2){ dmg = Math.round(dmg * 1.3); }
   if(attacker.id==='haz' && attacker._comeback) dmg = Math.round(dmg * 1.10);
   
-  // Lirathe "丧失理智" passive: +25% damage when active
-  if(attacker.id==='lirathe' && attacker._lossSanityActive){
-    dmg = Math.round(dmg * 1.25);
-    attacker._lossSanityActive = false; // Clear flag after use
-  }
-
   if(hasDeepBreathPassive(attacker)){
     dmg = Math.round(dmg * 1.10);
   }
@@ -2237,6 +2247,21 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
         updateStatusStacks(src, "violenceStacks", currentViolence + 1, { label: "暴力", type: "buff" });
         updateStatusStacks(src, "mockeryStacks", src.status.mockeryStacks - 1, { label: "戏谑", type: "buff" });
         appendLog(`${src.name} 的"戏谑"触发：+2 灵活层数，+1 暴力层数（消耗1层戏谑）`);
+      }
+    }
+    
+    // Lirathe "丧失理智" passive: 25% chance to trigger when hitting a target, dealing +25% damage but losing 25HP+10SP
+    // Only trigger if Lirathe actually dealt damage (finalHp > 0 or finalSp > 0)
+    if(src && src.id==='lirathe' && src._transformed && src.passives.includes('liratheLossSanity') && (finalHp > 0 || finalSp > 0)){
+      if(Math.random() < 0.25){
+        appendLog(`${src.name} 的"丧失理智"触发：在攻击后自损25HP+10SP`);
+        // Apply self damage to Lirathe after hitting the target
+        const hpLoss = 25;
+        const spLoss = 10;
+        src.hp = Math.max(1, src.hp - hpLoss); // Don't die from passive
+        const minSp = src.minSp !== undefined ? src.minSp : 0;
+        src.sp = Math.max(minSp, src.sp - spLoss);
+        showDamageFloat(src, hpLoss, spLoss);
       }
     }
   }
@@ -2803,22 +2828,6 @@ function unitActed(u){
         window._spiderWebs.add(`${pos.r},${pos.c}`);
         appendLog(`${u.name} 的"困境"触发：在(${pos.r},${pos.c})召唤蛛网（隐身）`);
       }
-    }
-  }
-  
-  // Lirathe "丧失理智" passive: 25% chance for +25% damage but lose 25HP+10SP
-  if(u.id==='lirathe' && u._transformed && u.passives.includes('liratheLossSanity')){
-    if(Math.random() < 0.25){
-      u._lossSanityActive = true;
-      appendLog(`${u.name} 的"丧失理智"触发：下次攻击伤害+25%，但自损25HP+10SP`);
-      // Apply self damage
-      const hpLoss = 25;
-      const spLoss = 10;
-      u.hp = Math.max(1, u.hp - hpLoss); // Don't die from passive
-      const minSp = u.minSp !== undefined ? u.minSp : 0;
-      u.sp = Math.max(minSp, u.sp - spLoss);
-      showDamageFloat(u, hpLoss, spLoss);
-      requireFullRender = true;
     }
   }
 
