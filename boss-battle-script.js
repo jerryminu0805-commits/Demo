@@ -1906,12 +1906,12 @@ function handleSpCrashIfNeeded(u){
       appendLog(`${u.name} 处于 SP 崩溃易伤：受到的伤害x1.5，直到眩晕解除且 SP 恢复`);
     }
     
-    // Lirathe Phase 2: At -100 SP, take 20 true damage and lose control
+    // Lirathe Phase 2: At -100 SP, take 20 true damage and schedule SP restore for next turn
     if(u.id === 'lirathe' && u._transformed && u.sp <= -100){
       damageUnit(u.id, u.spZeroHpPenalty || 20, 0, `${u.name} 因 SP 跌破 -100 受到真实伤害`, null, {trueDamage: true, ignoreCover: true, ignoreJixue: true, ignoreDepend: true});
-      appendLog(`${u.name} 的 SP 跌破 -100：自动恢复至 -10`);
-      u.sp = -10;
-      u.spPendingRestore = null;
+      // Schedule SP restore to -10 for next turn instead of immediately
+      u.spPendingRestore = -10;
+      appendLog(`${u.name} 的 SP 跌破 -100：下回合开始时自动恢复至 -10`);
     } else {
       applyStunOrStack(u, 1, {bypass:true, reason:'SP崩溃'});
       if(u.side==='player'){ playerSteps = Math.max(0, playerSteps - 1); } else { enemySteps = Math.max(0, enemySteps - 1); }
@@ -6628,8 +6628,11 @@ async function exhaustEnemySteps(){
       // 1) 尝试技能
       let didAct = false;
       
-      // limitedAction passive: can only use 1 skill per turn
-      if(en.passives && en.passives.includes('limitedAction') && (en.actionsThisTurn||0) >= 1){
+      // Lirathe Phase 2: Only attack when on high ground
+      if(en.id === 'lirathe' && en._transformed && !en._highGround){
+        // Not on high ground - skip attack phase, will try to climb instead
+        aiLog(en, 'Phase 2: Not on high ground, skipping attack phase');
+      } else if(en.passives && en.passives.includes('limitedAction') && (en.actionsThisTurn||0) >= 1){
         aiLog(en,'limitedAction: 本回合已使用技能，跳过');
       } else {
         const candidates = buildSkillCandidates(en);
