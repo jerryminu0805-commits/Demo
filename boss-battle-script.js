@@ -3928,6 +3928,51 @@ async function lirathe_CantFindWay(u){
   unitActed(u);
 }
 
+// Lirathe "I See You" skill - teleport to nearest wall
+async function lirathe_ISeeYou(u){
+  if(!u._highGround){
+    appendLog(`${u.name} 看见你了失败：未在高处`);
+    return unitActed(u);
+  }
+  
+  // Find nearest wall cell
+  let nearestWall = null;
+  let minDist = 999;
+  
+  for(let r=1; r<=ROWS; r++){
+    for(let c=1; c<=COLS; c++){
+      // Check if this position is adjacent to a wall
+      if(isAdjacentToWall(r, c)){
+        // Check if the position is valid and unoccupied
+        if(clampCell(r, c) && !getUnitAt(r, c)){
+          const dist = mdist(u, {r, c});
+          if(dist < minDist){
+            minDist = dist;
+            nearestWall = {r, c};
+          }
+        }
+      }
+    }
+  }
+  
+  if(!nearestWall){
+    appendLog(`${u.name} 看见你了失败：找不到可用的墙边位置`);
+    return unitActed(u);
+  }
+  
+  // Teleport to the nearest wall
+  const oldR = u.r, oldC = u.c;
+  u.r = nearestWall.r;
+  u.c = nearestWall.c;
+  
+  // Show visual effect
+  showTrail(oldR, oldC, u.r, u.c);
+  appendLog(`${u.name} 看见你了！瞬移到最近的墙边 (${u.r},${u.c})`);
+  
+  renderAll();
+  unitActed(u);
+}
+
 // Consciousness Flower skill
 async function consciousFlower_Resist(u, desc){
   const dir = desc && desc.dir ? desc.dir : u.facing;
@@ -4551,6 +4596,13 @@ function buildSkillFactoriesForUnit(u){
           (uu)=> lirathe_CantFindWay(uu),
           {aoe:true},
           {castMs:2400}
+        )},
+        // Special skill: "I See You" - teleport to nearest wall (0 cost, doesn't appear in pool, only usable with visible targets)
+        { key:'看见你了', prob:0, cond:()=>true, make:()=> skill('看见你了',0,'blue','瞬移到离自己最近的墙边',
+          (uu)=>[{r:uu.r,c:uu.c,dir:uu.facing}],
+          (uu)=> lirathe_ISeeYou(uu),
+          {aoe:false},
+          {castMs:600}
         )}
       );
     }
@@ -6253,6 +6305,19 @@ function buildSkillCandidates(en){
       }
     }
     
+    // Special: Add "看见你了" skill when Lirathe has visible targets and is on high ground
+    if(hasVisibleTargets && en._highGround && en.id === 'lirathe' && en._transformed){
+      // Create the "看见你了" skill dynamically
+      const iSeeYouSkill = skill('看见你了',0,'blue','瞬移到离自己最近的墙边',
+        (uu)=>[{r:uu.r,c:uu.c,dir:uu.facing}],
+        (uu)=> lirathe_ISeeYou(uu),
+        {aoe:false},
+        {castMs:600}
+      );
+      // Add it as a candidate with medium priority (can be used strategically to reposition)
+      candidates.push({sk: iSeeYouSkill, targetUnit:null, score: 15});
+    }
+    
     if(!hasVisibleTargets){
       // No visible targets - Lirathe attacks randomly
       // Pick random skills and random directions, but avoid directions that go outside map boundaries
@@ -6628,8 +6693,9 @@ async function exhaustEnemySteps(){
               }
             }
             
-            // Only move if we'll have enough steps left to use the cheapest skill
-            if(enemySteps > minSkillCost){
+            // Move if we have at least 1 step left after reserving for skill
+            // Changed from > to >= to allow movement when steps = minSkillCost + 1
+            if(enemySteps >= minSkillCost + 1){
               const wallMove = findWallPathToVisibleTarget(en);
               if(wallMove){
                 setUnitFacing(en, wallMove.dir || en.facing);
