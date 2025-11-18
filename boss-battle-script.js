@@ -4460,21 +4460,13 @@ function buildSkillFactoriesForUnit(u){
           {aoe:true},
           {castMs:1100}
         )},
-        { key:'又想逃？', prob:0.60, cond:()=>true, make:()=> skill('又想逃？',2,'blue','快速接近敌人：离敌方4格+则移动4格(靠墙则5格)，否则移动2格，对相邻敌人造成5HP',
+        { key:'又想逃？', prob:0.40, cond:()=>true, make:()=> skill('又想逃？',2,'blue','移动到任意2格，对相邻敌人造成5HP（贴墙则可移动4格）',
           (uu)=> {
-            // Check distance to nearest enemy
-            const enemies = Object.values(units).filter(u=>u.side==='player' && u.hp>0);
-            let minDist = 999;
-            for(const e of enemies){
-              const d = mdist(uu, e);
-              if(d < minDist) minDist = d;
-            }
+            // Check if unit is adjacent to a wall/cover
+            const nearWall = range_adjacent(uu).some(p=> isCoverCell(p.r, p.c));
             
-            const farFromEnemies = minDist >= 4;
-            const nearWall = range_adjacent(uu).some(p=> !clampCell(p.r+DIRS[p.dir].dr, p.c+DIRS[p.dir].dc));
-            
-            // When far from enemies: use extended range, especially near walls
-            const moveRange = farFromEnemies ? (nearWall ? 5 : 4) : 2;
+            // Base movement: 2 cells, but if next to wall/cover: 4 cells
+            const moveRange = nearWall ? 4 : 2;
             return range_move_radius(uu, moveRange);
           },
           (uu,payload)=> lirathe_EscapeMove(uu,payload),
@@ -6620,14 +6612,8 @@ async function exhaustEnemySteps(){
           // If can attack or after moving, proceed to skill execution phase
         }
         
-        // 3. If no visible targets and on high ground, descend
-        if(!hasVisibleTargets && en._highGround){
-          en._highGround = false;
-          appendLog(`${en.name} 失去视线：从高处下来，回到随机攻击模式`);
-          showStatusFloat(en,'下地',{type:'info'});
-          progressedThisRound = true;
-          await aiAwait(300);
-        }
+        // 3. If no visible targets and on high ground, stay on high ground (no voluntary descent)
+        // Lirathe will not voluntarily come down from high ground
       }
 
       // 1) 尝试技能
