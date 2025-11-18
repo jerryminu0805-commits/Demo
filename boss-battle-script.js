@@ -3942,11 +3942,6 @@ async function lirathe_CantFindWay(u){
 
 // Lirathe "I See You" skill - teleport to nearest wall
 async function lirathe_ISeeYou(u){
-  if(!u._highGround){
-    appendLog(`${u.name} 看见你了失败：未在高处`);
-    return unitActed(u);
-  }
-  
   // Find visible targets with "seen" or "exposed" status
   const visibleTargets = [];
   for(const id in units){
@@ -3961,36 +3956,92 @@ async function lirathe_ISeeYou(u){
     return unitActed(u);
   }
   
-  // Use BFS to find a path along walls toward the nearest visible target
-  const path = findWallPathBFS(u, visibleTargets);
-  
-  if(!path || path.length === 0){
-    appendLog(`${u.name} 看见你了失败：无法找到沿墙路径`);
-    return unitActed(u);
-  }
-  
-  // Move step-by-step along the wall path with animation
-  const oldR = u.r, oldC = u.c;
-  appendLog(`${u.name} 看见你了！沿墙移动接近目标...`);
-  
-  for(let i = 0; i < path.length; i++){
-    const step = path[i];
-    u.r = step.r;
-    u.c = step.c;
-    setUnitFacing(u, step.dir || u.facing);
+  // Check if Lirathe is on high ground and against a wall
+  if(u._highGround){
+    // First, check if we can attack any visible target directly from current position
+    let canAttackNow = false;
+    let attackInfo = null;
+    for(const target of visibleTargets){
+      const hitInfo = canLiratheHitTarget(u, target);
+      if(hitInfo){
+        canAttackNow = true;
+        attackInfo = hitInfo;
+        break;
+      }
+    }
     
-    // Show visual feedback for each step
+    // If can attack directly, don't use this skill (let AI use attack skill instead)
+    if(canAttackNow){
+      appendLog(`${u.name} 已可直接攻击目标，无需使用"看见你了"`);
+      return unitActed(u);
+    }
+    
+    // Use BFS to find a path along walls toward the nearest visible target
+    const path = findWallPathBFS(u, visibleTargets);
+    
+    if(!path || path.length === 0){
+      appendLog(`${u.name} 看见你了失败：无法找到沿墙路径`);
+      return unitActed(u);
+    }
+    
+    // Move step-by-step along the wall path with animation
+    const oldR = u.r, oldC = u.c;
+    appendLog(`${u.name} 看见你了！沿墙移动接近目标...`);
+    
+    for(let i = 0; i < path.length; i++){
+      const step = path[i];
+      u.r = step.r;
+      u.c = step.c;
+      setUnitFacing(u, step.dir || u.facing);
+      
+      // Show visual feedback for each step
+      cameraFocusOnCell(u.r, u.c);
+      renderAll();
+      
+      // Pause between steps to show movement
+      await aiAwait(200);
+    }
+    
+    appendLog(`${u.name} 沿墙移动了 ${path.length} 步，从 (${oldR},${oldC}) 到 (${u.r},${u.c})`);
+    
+    renderAll();
+    unitActed(u);
+  } else {
+    // Not on high ground - teleport to nearest wall (map edge)
+    const nearestEdge = findNearestMapEdge(u);
+    
+    if(!nearestEdge){
+      appendLog(`${u.name} 看见你了失败：无法找到可到达的墙边位置`);
+      return unitActed(u);
+    }
+    
+    const oldR = u.r, oldC = u.c;
+    
+    // Show trail effect for teleport
+    showTrailWithDuration(oldR, oldC, nearestEdge.r, nearestEdge.c, 500, {thickness: 8, color: 'rgba(138, 43, 226, 0.85)'});
+    
+    // Teleport to edge
+    u.r = nearestEdge.r;
+    u.c = nearestEdge.c;
+    
+    // Show visual feedback
     cameraFocusOnCell(u.r, u.c);
+    pulseCell(u.r, u.c);
     renderAll();
     
-    // Pause between steps to show movement
-    await aiAwait(200);
+    appendLog(`${u.name} 看见你了！瞬移到最近的墙边 (${nearestEdge.r},${nearestEdge.c})`);
+    
+    // Wait for animation
+    await aiAwait(400);
+    
+    // Try to climb after teleporting to wall
+    if(tryLiratheClimbing(u)){
+      await aiAwait(200);
+    }
+    
+    renderAll();
+    unitActed(u);
   }
-  
-  appendLog(`${u.name} 沿墙移动了 ${path.length} 步，从 (${oldR},${oldC}) 到 (${u.r},${u.c})`);
-  
-  renderAll();
-  unitActed(u);
 }
 
 // BFS pathfinding along walls toward visible targets
@@ -5356,6 +5407,56 @@ function findWallPathToVisibleTarget(lirathe){
   return bestMove;
 }
 
+// Find the nearest map edge (wall) for Lirathe to teleport to
+function findNearestMapEdge(lirathe){
+  if(!lirathe) return null;
+  
+  let bestPos = null;
+  let bestDist = 999;
+  
+  // Check all four edges of the map
+  const edges = [];
+  
+  // Top edge (row 1)
+  for(let c = 1; c <= COLS; c++){
+    if(clampCell(1, c) && !getUnitAt(1, c)){
+      edges.push({r: 1, c: c});
+    }
+  }
+  
+  // Bottom edge (row ROWS)
+  for(let c = 1; c <= COLS; c++){
+    if(clampCell(ROWS, c) && !getUnitAt(ROWS, c)){
+      edges.push({r: ROWS, c: c});
+    }
+  }
+  
+  // Left edge (column 1)
+  for(let r = 1; r <= ROWS; r++){
+    if(clampCell(r, 1) && !getUnitAt(r, 1)){
+      edges.push({r: r, c: 1});
+    }
+  }
+  
+  // Right edge (column COLS)
+  for(let r = 1; r <= ROWS; r++){
+    if(clampCell(r, COLS) && !getUnitAt(r, COLS)){
+      edges.push({r: r, c: COLS});
+    }
+  }
+  
+  // Find nearest edge position
+  for(const pos of edges){
+    const dist = mdist(lirathe, pos);
+    if(dist < bestDist){
+      bestDist = dist;
+      bestPos = pos;
+    }
+  }
+  
+  return bestPos;
+}
+
 function showDistanceDisplay(r, c, distance){
   clearDistanceDisplay();
   ensureFxLayer();
@@ -6404,8 +6505,10 @@ function buildSkillCandidates(en){
       }
     }
     
-    // Special: Add "看见你了" skill when Lirathe has visible targets and is on high ground
-    if(hasVisibleTargets && en._highGround && en.id === 'lirathe' && en._transformed){
+    // Special: Add "看见你了" skill when Lirathe has visible targets
+    // This skill can be used both when on high ground (to move along walls) 
+    // or when not on high ground (to teleport to nearest wall)
+    if(hasVisibleTargets && en.id === 'lirathe' && en._transformed){
       // Create the "看见你了" skill dynamically
       const iSeeYouSkill = skill('看见你了',0,'blue','沿墙移动接近有"看见"或"暴露"的目标',
         (uu)=>[{r:uu.r,c:uu.c,dir:uu.facing}],
@@ -6413,8 +6516,31 @@ function buildSkillCandidates(en){
         {aoe:false},
         {castMs:600}
       );
-      // Add it as a candidate with medium priority (can be used strategically to reposition)
-      candidates.push({sk: iSeeYouSkill, targetUnit:null, score: 15});
+      
+      // If on high ground, check if we can already attack from current position
+      if(en._highGround){
+        // Check if we can attack any visible target from current position
+        let canAttackNow = false;
+        for(const id in units){
+          const u = units[id];
+          if(u && u.hp > 0 && u.side === 'player' && canLiratheSeeTarget(en, u)){
+            const hitInfo = canLiratheHitTarget(en, u);
+            if(hitInfo){
+              canAttackNow = true;
+              break;
+            }
+          }
+        }
+        
+        // Only add movement skill if we can't attack yet
+        // Give it medium priority so attacks are preferred over movement
+        if(!canAttackNow){
+          candidates.push({sk: iSeeYouSkill, targetUnit:null, score: 15});
+        }
+      } else {
+        // Not on high ground - add with higher priority to encourage climbing
+        candidates.push({sk: iSeeYouSkill, targetUnit:null, score: 18});
+      }
     }
     
     if(!hasVisibleTargets){
