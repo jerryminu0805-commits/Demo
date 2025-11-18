@@ -6543,6 +6543,7 @@ async function exhaustEnemySteps(){
       if(en.id==='neyla' && en.oppression) ensureNeylaEndShadowGuarantee(en);
       
       // Lirathe Phase 2 AI: High Ground Priority + Wall-Hugging Attack Strategy
+      let liratheSpecialMovement = false;
       if(en.id === 'lirathe' && en._transformed && en.passives.includes('liratheClimbing') && !en.status.stunned){
         // Check if there are visible targets
         let hasVisibleTargets = false;
@@ -6561,6 +6562,7 @@ async function exhaustEnemySteps(){
           // PRIORITY 1: Try to climb when there are visible targets
           if(tryLiratheClimbing(en)){
             progressedThisRound = true;
+            liratheSpecialMovement = true;
             await aiAwait(300);
             // After climbing, continue to next phase (movement/attack)
           }
@@ -6592,6 +6594,7 @@ async function exhaustEnemySteps(){
               renderAll();
               appendLog(`${en.name} 移动到墙边准备攀爬`);
               progressedThisRound = true;
+              liratheSpecialMovement = true;
               await aiAwait(300);
               // Try to climb again after moving
               if(tryLiratheClimbing(en)){
@@ -6637,6 +6640,7 @@ async function exhaustEnemySteps(){
                 renderAll();
                 appendLog(`${en.name} 在高处沿墙移动，寻找攻击角度`);
                 progressedThisRound = true;
+                liratheSpecialMovement = true;
                 await aiAwait(300);
               }
             }
@@ -6666,7 +6670,8 @@ async function exhaustEnemySteps(){
       }
 
       // 2) 无技能可用 → 向玩家移动
-      if(!didAct && enemySteps>0){
+      // Skip normal movement if Lirathe already did special Phase 2 movement (climbing/moving toward walls)
+      if(!didAct && enemySteps>0 && !liratheSpecialMovement){
         const moved = stepTowardNearestPlayer(en);
         if(moved){
           progressedThisRound = true;
