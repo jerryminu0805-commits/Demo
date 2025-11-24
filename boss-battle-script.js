@@ -3969,7 +3969,7 @@ async function lirathe_CantFindWay(u){
 // Lirathe "I See You" skill - teleport to nearest wall
 async function lirathe_ISeeYou(u){
   // Find visible targets with "seen" or "exposed" status
-  const visibleTargets = [];
+  let visibleTargets = [];
   for(const id in units){
     const target = units[id];
     if(target && target.hp > 0 && target.side === 'player' && canLiratheSeeTarget(u, target)){
@@ -4002,58 +4002,60 @@ async function lirathe_ISeeYou(u){
       return unitActed(u);
     }
     
-    // Use BFS to find a path along walls toward the nearest visible target
-    const path = findWallPathBFS(u, visibleTargets);
-    
-    if(!path || path.length === 0){
-      // Fallback: Try to move along any available wall cell to avoid complete failure
-      const adj = range_adjacent(u);
-      const wallMoves = [];
-      for(const pos of adj){
-        if(canLiratheMoveOnHighGround(u, pos.r, pos.c)){
-          wallMoves.push(pos);
-        }
-      }
-      
-      if(wallMoves.length > 0){
-        // Move to a random available wall cell
-        const move = wallMoves[Math.floor(Math.random() * wallMoves.length)];
-        const oldR = u.r, oldC = u.c;
-        u.r = move.r;
-        u.c = move.c;
-        // Set facing direction based on movement or use existing direction
-        const faceDir = move.dir || cardinalDirFromDelta(move.r - oldR, move.c - oldC);
-        setUnitFacing(u, faceDir);
-        cameraFocusOnCell(u.r, u.c);
-        renderAll();
-        appendLog(`${u.name} 看见你了！沿墙移动 1 步探索（从 (${oldR},${oldC}) 到 (${u.r},${u.c})）`);
-        return unitActed(u);
-      } else {
-        appendLog(`${u.name} 看见你了：已在最优位置，保持当前姿态`);
-        return unitActed(u);
-      }
-    }
-    
-    // Move step-by-step along the wall path with animation
+    // Move step-by-step along the wall path with animation until we can attack or lose targets
     const oldR = u.r, oldC = u.c;
     appendLog(`${u.name} 看见你了！沿墙移动接近目标...`);
-    
-    for(let i = 0; i < path.length; i++){
-      const step = path[i];
+
+    while(enemySteps > 0){
+      // Refresh visible targets; stop if none remain
+      visibleTargets = visibleTargets.filter(t => t.hp > 0 && canLiratheSeeTarget(u, t));
+      if(visibleTargets.length === 0){
+        appendLog(`${u.name} 看见你了：目标消失，停止移动`);
+        break;
+      }
+
+      // Stop moving if we can already attack from current position
+      let canAttackFromHere = false;
+      for(const t of visibleTargets){
+        if(canLiratheHitTarget(u, t)){
+          canAttackFromHere = true;
+          break;
+        }
+      }
+      if(canAttackFromHere) break;
+
+      // Find a path within remaining steps toward any visible target
+      let path = findWallPathBFS(u, visibleTargets, enemySteps);
+      if(!path || path.length === 0){
+        // Fallback: Try to move along any available wall cell to avoid complete failure
+        const adj = range_adjacent(u);
+        const wallMoves = adj.filter(pos => canLiratheMoveOnHighGround(u, pos.r, pos.c));
+        if(wallMoves.length === 0){
+          appendLog(`${u.name} 看见你了：沿墙无路可走`);
+          break;
+        }
+        const move = wallMoves[Math.floor(Math.random() * wallMoves.length)];
+        path = [move];
+      }
+
+      const step = path[0];
+      const faceDir = step.dir || cardinalDirFromDelta(step.r - u.r, step.c - u.c) || u.facing;
       u.r = step.r;
       u.c = step.c;
-      setUnitFacing(u, step.dir || u.facing);
-      
+      setUnitFacing(u, faceDir);
+      enemySteps = Math.max(0, enemySteps - 1);
+      updateStepsUI();
+
       // Show visual feedback for each step
       cameraFocusOnCell(u.r, u.c);
       renderAll();
-      
+
       // Pause between steps to show movement
       await aiAwait(200);
     }
-    
-    appendLog(`${u.name} 沿墙移动了 ${path.length} 步，从 (${oldR},${oldC}) 到 (${u.r},${u.c})`);
-    
+
+    appendLog(`${u.name} 沿墙移动，从 (${oldR},${oldC}) 到 (${u.r},${u.c})（剩余敌方步数 ${enemySteps}）`);
+
     renderAll();
     unitActed(u);
   } else {
@@ -4095,7 +4097,7 @@ async function lirathe_ISeeYou(u){
 }
 
 // BFS pathfinding along walls toward visible targets
-function findWallPathBFS(lirathe, visibleTargets){
+function findWallPathBFS(lirathe, visibleTargets, stepBudget){
   if(!lirathe || !lirathe._highGround || visibleTargets.length === 0) return null;
   
   // BFS to find shortest wall-adjacent path to any visible target
@@ -4107,7 +4109,8 @@ function findWallPathBFS(lirathe, visibleTargets){
   let bestScore = -999;
   // Allow traversing the full perimeter loop (1,1)→(ROWS,1)→(ROWS,COLS)→(1,COLS)→(1,1)
   const perimeterLength = (ROWS + COLS) * 2 - 4;
-  const maxSteps = Math.max(12, perimeterLength); // Let Lirathe walk the wall until she can attack
+  const defaultSteps = Math.max(12, perimeterLength);
+  const maxSteps = stepBudget !== undefined ? Math.max(1, stepBudget) : defaultSteps;
   
   while(queue.length > 0){
     const current = queue.shift();
