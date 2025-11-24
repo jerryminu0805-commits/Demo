@@ -4099,7 +4099,38 @@ async function lirathe_ISeeYou(u){
 // BFS pathfinding along walls toward visible targets
 function findWallPathBFS(lirathe, visibleTargets, stepBudget){
   if(!lirathe || !lirathe._highGround || visibleTargets.length === 0) return null;
-  
+
+  // Helper: can we attack a target from this cell with the remaining step budget?
+  const canAttackWithBudget = (posR, posC, remainingSteps)=>{
+    if(remainingSteps < 0) return null;
+
+    const oldR = lirathe.r, oldC = lirathe.c;
+    lirathe.r = posR; lirathe.c = posC;
+
+    let result = null;
+    for(const sk of lirathe.skillPool || []){
+      if(sk.cost > remainingSteps) continue;
+
+      for(const dirName of Object.keys(DIRS)){
+        const cells = sk.rangeFn ? sk.rangeFn(lirathe, dirName, null) : [];
+        for(const cell of cells){
+          for(const target of visibleTargets){
+            if(target.hp > 0 && unitCoversCell(target, cell.r, cell.c)){
+              result = {skill: sk, dir: dirName, target};
+              break;
+            }
+          }
+          if(result) break;
+        }
+        if(result) break;
+      }
+      if(result) break;
+    }
+
+    lirathe.r = oldR; lirathe.c = oldC;
+    return result;
+  };
+
   // BFS to find shortest wall-adjacent path to any visible target
   const queue = [{r: lirathe.r, c: lirathe.c, path: []}];
   const visited = new Set();
@@ -4111,44 +4142,41 @@ function findWallPathBFS(lirathe, visibleTargets, stepBudget){
   const perimeterLength = (ROWS + COLS) * 2 - 4;
   const defaultSteps = Math.max(12, perimeterLength);
   const maxSteps = stepBudget !== undefined ? Math.max(1, stepBudget) : defaultSteps;
-  
+
   while(queue.length > 0){
     const current = queue.shift();
-    
+
+    const stepsUsed = current.path.length;
+    const remainingSteps = maxSteps - stepsUsed;
+
     // If we've explored too far, continue to next node
-    if(current.path.length >= maxSteps) continue;
-    
+    if(stepsUsed > maxSteps) continue;
+
     // Check if we can attack any visible target from current position
     const oldR = lirathe.r, oldC = lirathe.c;
     lirathe.r = current.r;
     lirathe.c = current.c;
-    
-    let canAttack = false;
+    const attackInfo = canAttackWithBudget(current.r, current.c, remainingSteps);
+    lirathe.r = oldR; lirathe.c = oldC;
+
+    if(attackInfo){
+      // If we found an attacking position reachable within the step budget, use it immediately
+      return current.path;
+    }
+
+    // Track how close we are to the nearest target; prefer nodes that close the gap while leaving budget
     let closestDist = 999;
     for(const target of visibleTargets){
-      const hitInfo = canLiratheHitTarget(lirathe, target);
-      if(hitInfo){
-        canAttack = true;
-        // If we found an attacking position, return this path immediately
-        lirathe.r = oldR;
-        lirathe.c = oldC;
-        return current.path;
-      }
-      // Track closest distance to any target
       const dist = mdist({r: current.r, c: current.c}, target);
       if(dist < closestDist) closestDist = dist;
     }
-    
-    // Score based on distance to closest target
-    const score = -closestDist + current.path.length * 0.1; // Prefer shorter paths slightly
+
+    const score = -(closestDist) + Math.max(0, remainingSteps) * 0.15;
     if(score > bestScore){
       bestScore = score;
       bestPath = current.path.slice();
     }
-    
-    lirathe.r = oldR;
-    lirathe.c = oldC;
-    
+
     // Explore adjacent wall cells
     // Temporarily move to current position to get correct adjacent cells
     lirathe.r = current.r;
