@@ -4701,18 +4701,22 @@ function buildSkillFactoriesForUnit(u){
           {aoe:true},
           {castMs:1100}
         )},
-        { key:'又想逃？', prob:1.0, cond:()=>true, make:()=> skill('又想逃？',2,'blue','移动到任意2格，对相邻敌人造成5HP（贴墙则可移动4格）',
+        { key:'又想逃？', prob:0.4, cond:()=>true, make:()=> skill('又想逃？',2,'blue','向前或随机2格移动，对相邻敌人造成5HP',
           (uu)=> {
-            // Check if unit is adjacent to a wall/cover or map edge
-            const nearWall = range_adjacent(uu).some(p=> isCoverCell(p.r, p.c)) || isAdjacentToWall(uu.r, uu.c);
-            
-            // Base movement: 2 cells, but if next to wall/cover: 4 cells
-            const moveRange = nearWall ? 4 : 2;
-            return range_move_radius(uu, moveRange);
+            const cells = [];
+            // Option 1: Forward 2 squares in facing direction
+            const fwd = forwardCellAt(uu, uu.facing, 2);
+            if(fwd && !getUnitAt(fwd.r, fwd.c)){
+              cells.push({r:fwd.r, c:fwd.c, dir:uu.facing});
+            }
+            // Option 2: Random 2 squares in any direction (Manhattan distance)
+            const radius2Cells = range_move_radius(uu, 2);
+            cells.push(...radius2Cells);
+            return cells;
           },
           (uu,payload)=> lirathe_EscapeMove(uu,payload),
           {},
-          {moveSkill:true, moveRadius:4, castMs:800}
+          {moveSkill:true, moveRadius:2, castMs:800}
         )},
         { key:'刀光吸入', prob:0.40, cond:()=>true, make:()=> skill('刀光吸入',2,'red','前方3x2横扫20伤并上刀光（5层爆炸造成5HP/5SP/层并恢复自身）',
           (uu,aimDir)=> aimDir? forwardRectCentered(uu,aimDir,3,2) : (()=>{const a=[]; for(const d in DIRS) forwardRectCentered(uu,d,3,2).forEach(x=>a.push(x)); return a;})(),
@@ -6992,22 +6996,9 @@ async function exhaustEnemySteps(){
       // 1) 尝试技能
       let didAct = false;
       
-      // Lirathe Phase 2: Can use "看见你了" (teleport) skill even when not on high ground
-      // Only skip normal attack skills when not on high ground
-      if(en.id === 'lirathe' && en._transformed && !en._highGround){
-        // Not on high ground - can use movement/utility skills but not attack skills
-        const candidates = buildSkillCandidates(en);
-        if(candidates.length > 0){
-          // Filter to only include non-attack skills (like "看见你了")
-          const movementSkills = candidates.filter(c => c.sk.name === '看见你了');
-          if(movementSkills.length > 0){
-            didAct = await execEnemySkillCandidate(en, movementSkills[0]);
-            if(didAct) progressedThisRound = true;
-          } else {
-            aiLog(en, 'Phase 2: Not on high ground, skipping attack phase');
-          }
-        }
-      } else if(en.passives && en.passives.includes('limitedAction') && (en.actionsThisTurn||0) >= 1){
+      // Lirathe Phase 2: Can attack regardless of high ground status
+      // The vision/attack restriction is already handled in buildSkillCandidates
+      if(en.passives && en.passives.includes('limitedAction') && (en.actionsThisTurn||0) >= 1){
         aiLog(en,'limitedAction: 本回合已使用技能，跳过');
       } else {
         const candidates = buildSkillCandidates(en);
