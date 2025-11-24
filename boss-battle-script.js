@@ -5283,11 +5283,11 @@ function canUnitMove(u){
   if(u._stanceType && u._stanceTurns>0) return false; // 姿态期间禁止移动
   if(u.passives && u.passives.includes('rooted')) return false; // 根深蒂固被动：无法移动
   if(u.status && u.status.immobilizedStacks > 0) return false; // 禁锢：无法移动
-  // Lirathe Phase 2: 失去普通移动能力 (except when climbing or on high ground adjacent to wall)
+  // Lirathe Phase 2: 失去普通移动能力 (except when on high ground on perimeter)
   if(u.id === 'lirathe' && u._transformed && u.passives.includes('liratheShedMortal')){
-    // Exception: Can move when on high ground AND adjacent to a wall
-    if(u._highGround && isAdjacentToWall(u.r, u.c)){
-      return true; // Can move along walls when on high ground
+    // Exception: Can move when on high ground AND on the perimeter
+    if(u._highGround && isPerimeterCell(u.r, u.c)){
+      return true; // Can move along perimeter when on high ground
     }
     return false; // Otherwise, cannot move
   }
