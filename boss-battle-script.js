@@ -290,8 +290,16 @@ function inRadiusCells(u, maxManhattan, {allowOccupied=false, includeSelf=true}=
   return res;
 }
 function range_move_radius(u, radius){
-  return inRadiusCells(u, radius, {allowOccupied:false, includeSelf:true})
-    .map(p=>({r:p.r,c:p.c,dir:cardinalDirFromDelta(p.r-u.r,p.c-u.c)}));
+  const cells = inRadiusCells(u, radius, {allowOccupied:false, includeSelf:true});
+  
+  // Special handling for Lirathe on high ground - restrict to perimeter cells
+  if(u && u.id === 'lirathe' && u._transformed && u._highGround){
+    return cells
+      .filter(p => isPerimeterCell(p.r, p.c))
+      .map(p=>({r:p.r,c:p.c,dir:cardinalDirFromDelta(p.r-u.r,p.c-u.c)}));
+  }
+  
+  return cells.map(p=>({r:p.r,c:p.c,dir:cardinalDirFromDelta(p.r-u.r,p.c-u.c)}));
 }
 function range_square_n(u, nHalf){
   const arr=[];
@@ -4709,7 +4717,14 @@ function buildSkillFactoriesForUnit(u){
             // Option 1: Forward 2 squares in facing direction
             const fwd = forwardCellAt(uu, uu.facing, 2);
             if(fwd && !getUnitAt(fwd.r, fwd.c)){
-              cells.push({r:fwd.r, c:fwd.c, dir:uu.facing});
+              // Check if valid for Lirathe on high ground (must be perimeter cell)
+              if(uu.id === 'lirathe' && uu._transformed && uu._highGround){
+                if(isPerimeterCell(fwd.r, fwd.c)){
+                  cells.push({r:fwd.r, c:fwd.c, dir:uu.facing});
+                }
+              } else {
+                cells.push({r:fwd.r, c:fwd.c, dir:uu.facing});
+              }
             }
             // Option 2: Random 2 squares in any direction (Manhattan distance)
             const radius2Cells = range_move_radius(uu, 2);
