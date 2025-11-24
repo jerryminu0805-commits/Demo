@@ -169,6 +169,7 @@ function createUnit(id, name, side, level, r, c, maxHp, maxSp, restoreOnZeroPct,
       exposedStacks: 0,          // "暴露"Buff 层数（移动超过5格时触发，让Lirathe看得到该单位）
       mockeryStacks: 0,          // "戏谑"Buff 层数（下一次攻击命中后，给自己上2层灵活和1层暴力，消耗一层戏谑）
       violenceStacks: 0,         // "暴力"Buff 层数（增加攻击伤害）
+      bladeLightStacks: 0,       // "刀光"Debuff 层数（5层爆炸造成5HP/5SP/层并恢复施法者5HP/SP/层）
     },
     dmgDone: 0,
     skillPool: [],
@@ -2236,6 +2237,18 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
 
   if(sourceId){
     const src = units[sourceId];
+    
+    // Mockery Buff: If attacker has mockery stacks and hit landed, give self +2 agile and +1 violence, consume 1 mockery
+    // This should work for both player and enemy units
+    if(src && src.status && src.status.mockeryStacks > 0 && (finalHp > 0 || finalSp > 0)){
+      const currentAgile = src.status.agileStacks || 0;
+      const currentViolence = src.status.violenceStacks || 0;
+      updateStatusStacks(src, "agileStacks", currentAgile + 2, { label: "灵活", type: "buff" });
+      updateStatusStacks(src, "violenceStacks", currentViolence + 1, { label: "暴力", type: "buff" });
+      updateStatusStacks(src, "mockeryStacks", src.status.mockeryStacks - 1, { label: "戏谑", type: "buff" });
+      appendLog(`${src.name} 的"戏谑"触发：+2 灵活层数，+1 暴力层数（消耗1层戏谑）`);
+    }
+    
     if(src && src.side === "player" && (finalHp>0 || finalSp>0)){
       const equipped = loadEquippedAccessories();
       if(equipped[src.id] === "tetanus"){
@@ -2252,16 +2265,6 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
           updateStatusStacks(u, "bloodyBud", currentBuds + 1, { label: "血色花蕾", type: "debuff" });
           appendLog(`${src.name} 的攻击触发"绽放（红色）"被动：${u.name} +1 层血色花蕾 (${currentBuds + 1}/7)`);
         }
-      }
-      
-      // Mockery Buff: If attacker has mockery stacks and hit landed, give self +2 agile and +1 violence, consume 1 mockery
-      if(src.status && src.status.mockeryStacks > 0 && (finalHp > 0 || finalSp > 0)){
-        const currentAgile = src.status.agileStacks || 0;
-        const currentViolence = src.status.violenceStacks || 0;
-        updateStatusStacks(src, "agileStacks", currentAgile + 2, { label: "灵活", type: "buff" });
-        updateStatusStacks(src, "violenceStacks", currentViolence + 1, { label: "暴力", type: "buff" });
-        updateStatusStacks(src, "mockeryStacks", src.status.mockeryStacks - 1, { label: "戏谑", type: "buff" });
-        appendLog(`${src.name} 的"戏谑"触发：+2 灵活层数，+1 暴力层数（消耗1层戏谑）`);
       }
     }
     
@@ -3586,8 +3589,8 @@ async function lirathe_BladeAbsorb(u, desc){
       tu.status.bladeLightStacks += 1;
       updateStatusStacks(tu,'bladeLightStacks',tu.status.bladeLightStacks,{label:'刀光',type:'debuff'});
       
-      // Check if blade light reaches 10 stacks
-      if(tu.status.bladeLightStacks >= 10){
+      // Check if blade light reaches 5 stacks - auto explode
+      if(tu.status.bladeLightStacks >= 5){
         const burstDmg = tu.status.bladeLightStacks * 5;
         damageUnit(tu.id, burstDmg, burstDmg, `刀光爆炸 ${tu.name}`, u.id, {skillName:'刀光爆炸'});
         u.hp = Math.min(u.maxHp, u.hp + burstDmg);
@@ -4676,8 +4679,8 @@ function buildSkillFactoriesForUnit(u){
         )},
         { key:'又想逃？', prob:0.40, cond:()=>true, make:()=> skill('又想逃？',2,'blue','移动到任意2格，对相邻敌人造成5HP（贴墙则可移动4格）',
           (uu)=> {
-            // Check if unit is adjacent to a wall/cover
-            const nearWall = range_adjacent(uu).some(p=> isCoverCell(p.r, p.c));
+            // Check if unit is adjacent to a wall/cover or map edge
+            const nearWall = range_adjacent(uu).some(p=> isCoverCell(p.r, p.c)) || isAdjacentToWall(uu.r, uu.c);
             
             // Base movement: 2 cells, but if next to wall/cover: 4 cells
             const moveRange = nearWall ? 4 : 2;
@@ -4687,7 +4690,7 @@ function buildSkillFactoriesForUnit(u){
           {},
           {moveSkill:true, moveRadius:4, castMs:800}
         )},
-        { key:'刀光吸入', prob:0.40, cond:()=>true, make:()=> skill('刀光吸入',2,'red','前方3x2横扫20伤并上刀光（10层爆炸造成5HP/5SP/层并恢复自身）',
+        { key:'刀光吸入', prob:0.40, cond:()=>true, make:()=> skill('刀光吸入',2,'red','前方3x2横扫20伤并上刀光（5层爆炸造成5HP/5SP/层并恢复自身）',
           (uu,aimDir)=> aimDir? forwardRectCentered(uu,aimDir,3,2) : (()=>{const a=[]; for(const d in DIRS) forwardRectCentered(uu,d,3,2).forEach(x=>a.push(x)); return a;})(),
           (uu,desc)=> lirathe_BladeAbsorb(uu,desc),
           {aoe:true},
