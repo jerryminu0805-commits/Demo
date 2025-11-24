@@ -2383,7 +2383,7 @@ function handleUnitDeath(u, source){
       bossBGM.load();
       bossBGM.volume = 0.6;
       bossBGM.play().catch(e => console.log('Lirathe Phase 2 BGM play failed:', e));
-      appendLog('BGM 切换至 Lirathe Phase 2');
+      appendLog('BGM 切换至 Lirathe 第二形态');
     }
     
     renderAll();
