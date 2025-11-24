@@ -4011,7 +4011,9 @@ async function lirathe_ISeeYou(u){
         const oldR = u.r, oldC = u.c;
         u.r = move.r;
         u.c = move.c;
-        setUnitFacing(u, move.dir || u.facing);
+        // Set facing direction based on movement or use existing direction
+        const faceDir = move.dir || cardinalDirFromDelta(move.r - oldR, move.c - oldC);
+        setUnitFacing(u, faceDir);
         cameraFocusOnCell(u.r, u.c);
         renderAll();
         appendLog(`${u.name} 看见你了！沿墙移动 1 步探索（从 (${oldR},${oldC}) 到 (${u.r},${u.c})）`);
