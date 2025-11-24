@@ -4102,10 +4102,12 @@ function findWallPathBFS(lirathe, visibleTargets){
   const queue = [{r: lirathe.r, c: lirathe.c, path: []}];
   const visited = new Set();
   visited.add(`${lirathe.r},${lirathe.c}`);
-  
+
   let bestPath = null;
   let bestScore = -999;
-  const maxSteps = 10; // Limit search depth
+  // Allow traversing the full perimeter loop (1,1)→(ROWS,1)→(ROWS,COLS)→(1,COLS)→(1,1)
+  const perimeterLength = (ROWS + COLS) * 2 - 4;
+  const maxSteps = Math.max(12, perimeterLength); // Let Lirathe walk the wall until she can attack
   
   while(queue.length > 0){
     const current = queue.shift();
@@ -6579,7 +6581,13 @@ function enemyLivingEnemies(){ return Object.values(units).filter(u=>u.side==='e
 function enemyLivingPlayers(){ return Object.values(units).filter(u=>u.side==='player' && u.hp>0); }
 
 function buildSkillCandidates(en){
-  const skillset = (en.skillPool && en.skillPool.length) ? en.skillPool : [];
+  let skillset = (en.skillPool && en.skillPool.length) ? en.skillPool : [];
+
+  // Safety: after变身如果手牌被清空，强制重新抽牌，避免“什么都不做”卡死
+  if(en.id === 'lirathe' && en._transformed && skillset.length === 0){
+    ensureStartHand(en);
+    skillset = (en.skillPool && en.skillPool.length) ? en.skillPool : [];
+  }
   const candidates=[];
   
   // Check if Lirathe can see any targets (Darkness passive)
