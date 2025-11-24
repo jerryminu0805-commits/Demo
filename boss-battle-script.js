@@ -5349,12 +5349,14 @@ function isPerimeterCell(r, c){
 // Helper function to check if Lirathe can move to target position when on high ground
 function canLiratheMoveOnHighGround(u, targetR, targetC){
   if(!u || u.id !== 'lirathe' || !u._transformed || !u._highGround) return false;
-  
+
   // Must be adjacent to current position
   if(Math.abs(targetR - u.r) + Math.abs(targetC - u.c) !== 1) return false;
-  
-  // Target position must be on the perimeter (wall edge)
-  if(!isPerimeterCell(targetR, targetC)){
+
+  // Target position must hug the wall (perimeter itself or the cells immediately inside it)
+  const onPerimeter = isPerimeterCell(targetR, targetC);
+  const besidePerimeter = !onPerimeter && isAdjacentToWall(targetR, targetC);
+  if(!onPerimeter && !besidePerimeter){
     return false;
   }
   
