@@ -4027,15 +4027,48 @@ async function lirathe_ISeeYou(u){
       // Find a path within remaining steps toward any visible target
       let path = findWallPathBFS(u, visibleTargets, enemySteps);
       if(!path || path.length === 0){
-        // Fallback: Try to move along any available wall cell to avoid complete failure
+        // Fallback: choose the wall step that most reduces distance to the nearest perimeter point of any target
         const adj = range_adjacent(u);
         const wallMoves = adj.filter(pos => canLiratheMoveOnHighGround(u, pos.r, pos.c));
         if(wallMoves.length === 0){
           appendLog(`${u.name} 看见你了：沿墙无路可走`);
           break;
         }
-        const move = wallMoves[Math.floor(Math.random() * wallMoves.length)];
-        path = [move];
+
+        const bestMove = wallMoves.reduce((best, move)=>{
+          // For each target, find the closest perimeter anchor (target itself if on edge, otherwise the nearest edge cell)
+          let bestDist = Infinity;
+          for(const t of visibleTargets){
+            const anchor = {
+              r: clampValue(t.r, 1, ROWS),
+              c: clampValue(t.c, 1, COLS)
+            };
+
+            if(!isPerimeterCell(anchor.r, anchor.c)){
+              // Project to the nearest perimeter row/col
+              const drTop = Math.abs(anchor.r - 1);
+              const drBottom = Math.abs(anchor.r - ROWS);
+              const dcLeft = Math.abs(anchor.c - 1);
+              const dcRight = Math.abs(anchor.c - COLS);
+
+              const minDelta = Math.min(drTop, drBottom, dcLeft, dcRight);
+              if(minDelta === drTop) anchor.r = 1;
+              else if(minDelta === drBottom) anchor.r = ROWS;
+              else if(minDelta === dcLeft) anchor.c = 1;
+              else anchor.c = COLS;
+            }
+
+            const dist = mdist(move, anchor);
+            if(dist < bestDist) bestDist = dist;
+          }
+
+          if(!best || bestDist < best.bestDist){
+            return {move, bestDist};
+          }
+          return best;
+        }, null);
+
+        path = bestMove ? [bestMove.move] : [wallMoves[Math.floor(Math.random() * wallMoves.length)]];
       }
 
       const step = path[0];
