@@ -5329,6 +5329,10 @@ function isAdjacentToWall(r, c){
     if(checkR < 1 || checkR > ROWS || checkC < 1 || checkC > COLS){
       return true;
     }
+    // Perimeter cells themselves count as adjacent walls for high-ground movement
+    if(isPerimeterCell(checkR, checkC)){
+      return true;
+    }
     if(isCoverCell(checkR, checkC)){
       return true;
     }
