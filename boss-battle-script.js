@@ -4718,11 +4718,9 @@ function buildSkillFactoriesForUnit(u){
             const fwd = forwardCellAt(uu, uu.facing, 2);
             if(fwd && !getUnitAt(fwd.r, fwd.c)){
               // Check if valid for Lirathe on high ground (must be perimeter cell)
-              if(uu.id === 'lirathe' && uu._transformed && uu._highGround){
-                if(isPerimeterCell(fwd.r, fwd.c)){
-                  cells.push({r:fwd.r, c:fwd.c, dir:uu.facing});
-                }
-              } else {
+              const isLiratheOnHighGround = uu.id === 'lirathe' && uu._transformed && uu._highGround;
+              const isValidMove = !isLiratheOnHighGround || isPerimeterCell(fwd.r, fwd.c);
+              if(isValidMove){
                 cells.push({r:fwd.r, c:fwd.c, dir:uu.facing});
               }
             }
@@ -5335,11 +5333,11 @@ function isAdjacentToWall(r, c){
 
 // Helper function to check if a cell is on the map perimeter (wall edge)
 function isPerimeterCell(r, c){
-  // Perimeter cells are: (1,1)→(9,1)→(9,26)→(1,26)→(1,1)
+  // Perimeter cells are: (1,1)→(ROWS,1)→(ROWS,COLS)→(1,COLS)→(1,1)
   // Top edge: row 1, any column
-  // Bottom edge: row 9 (ROWS), any column
+  // Bottom edge: row ROWS, any column
   // Left edge: column 1, any row
-  // Right edge: column 26 (COLS), any row
+  // Right edge: column COLS, any row
   return (r === 1 || r === ROWS || c === 1 || c === COLS);
 }
 
