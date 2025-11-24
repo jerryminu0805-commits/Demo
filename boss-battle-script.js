@@ -2133,12 +2133,14 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
     appendLog(`${u.name} 因 SP 崩溃眩晕承受双倍伤害！`);
   }
   
-  // Lirathe weakness vulnerability from stepping on weakness tile
+  // Lirathe weakness vulnerability - DISABLED (weakness tiles no longer have effect)
+  /*
   if(u._weaknessVulnerable && (hpDmg>0 || spDmg>0)){
     hpDmg = Math.round(hpDmg * 1.5);
     spDmg = Math.round(spDmg * 1.5);
     appendLog(`${u.name} 因软肋承受额外伤害！`);
   }
+  */
 
   const prevHp = u.hp;
   let finalHp = Math.max(0, hpDmg);
@@ -5316,6 +5318,16 @@ function isAdjacentToWall(r, c){
   return false;
 }
 
+// Helper function to check if a cell is on the map perimeter (wall edge)
+function isPerimeterCell(r, c){
+  // Perimeter cells are: (1,1)→(9,1)→(9,26)→(1,26)→(1,1)
+  // Top edge: row 1, any column
+  // Bottom edge: row 9 (ROWS), any column
+  // Left edge: column 1, any row
+  // Right edge: column 26 (COLS), any row
+  return (r === 1 || r === ROWS || c === 1 || c === COLS);
+}
+
 // Helper function to check if Lirathe can move to target position when on high ground
 function canLiratheMoveOnHighGround(u, targetR, targetC){
   if(!u || u.id !== 'lirathe' || !u._transformed || !u._highGround) return false;
@@ -5323,8 +5335,8 @@ function canLiratheMoveOnHighGround(u, targetR, targetC){
   // Must be adjacent to current position
   if(Math.abs(targetR - u.r) + Math.abs(targetC - u.c) !== 1) return false;
   
-  // Target position must be adjacent to a wall (map edges are also walls)
-  if(!isAdjacentToWall(targetR, targetC)){
+  // Target position must be on the perimeter (wall edge)
+  if(!isPerimeterCell(targetR, targetC)){
     return false;
   }
   
@@ -6055,7 +6067,8 @@ function processUnitsTurnEnd(side){
       const next = Math.max(0, u.status.stunned-1);
       updateStatusStacks(u,'stunned', next, {label:'眩晕', type:'debuff'});
       appendLog(`${u.name} 的眩晕减少 1（剩余 ${u.status.stunned}）`);
-      // Clear weakness vulnerability when stun ends
+      // Weakness vulnerability cleanup - DISABLED (weakness tiles no longer have effect)
+      /*
       if(u.id === 'lirathe' && next === 0 && u._weaknessVulnerable){
         u._weaknessVulnerable = false;
         appendLog(`${u.name} 恢复正常`);
@@ -6072,6 +6085,7 @@ function processUnitsTurnEnd(side){
           }
         }
       }
+      */
     }
     // Decrease immobilized stacks
     if(u.status.immobilizedStacks && u.status.immobilizedStacks > 0){
@@ -6311,6 +6325,9 @@ function createWeaknessTile(r, c){
 }
 
 function checkWeaknessTilesForUnit(u){
+  // Weakness tiles are now disabled - no effect
+  return;
+  /*
   if(!window._weaknessTiles) return;
   const lirathe = units['lirathe'];
   if(!lirathe || lirathe.hp <= 0 || !lirathe._transformed) return;
@@ -6326,6 +6343,7 @@ function checkWeaknessTilesForUnit(u){
     window._weaknessTiles.delete(key);
     renderAll();
   }
+  */
 }
 
 function checkSpiderWebsForUnit(u){
@@ -6345,6 +6363,9 @@ function checkSpiderWebsForUnit(u){
 }
 
 function checkWeaknessTiles(){
+  // Weakness tiles are now disabled - no effect
+  return;
+  /*
   if(!window._weaknessTiles) return;
   const lirathe = units['lirathe'];
   if(!lirathe || lirathe.hp <= 0 || !lirathe._transformed) return;
@@ -6355,6 +6376,7 @@ function checkWeaknessTiles(){
       checkWeaknessTilesForUnit(u);
     }
   }
+  */
 }
 
 function finishEnemyTurn(){
