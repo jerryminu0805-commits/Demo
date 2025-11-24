@@ -1925,9 +1925,9 @@ function handleSpCrashIfNeeded(u){
       damageUnit(u.id, u.spZeroHpPenalty || 20, 0, `${u.name} 因 SP 跌破 -100 受到真实伤害`, null, {trueDamage: true, ignoreCover: true, ignoreJixue: true, ignoreDepend: true});
       applyStunOrStack(u, 1, {bypass:true, reason:'SP崩溃'});
       if(u.side==='player'){ playerSteps = Math.max(0, playerSteps - 1); } else { enemySteps = Math.max(0, enemySteps - 1); }
-      // Schedule SP restore to -10 for next turn instead of immediately
-      u.spPendingRestore = -10;
-      appendLog(`${u.name} 的 SP 跌破 -100：下回合开始时自动恢复至 -10`);
+      // Schedule SP restore to 0 for next turn (reset to baseline)
+      u.spPendingRestore = 0;
+      appendLog(`${u.name} 的 SP 跌破 -100：下回合开始时自动恢复至 0`);
     } else {
       applyStunOrStack(u, 1, {bypass:true, reason:'SP崩溃'});
       if(u.side==='player'){ playerSteps = Math.max(0, playerSteps - 1); } else { enemySteps = Math.max(0, enemySteps - 1); }
@@ -3996,8 +3996,30 @@ async function lirathe_ISeeYou(u){
     const path = findWallPathBFS(u, visibleTargets);
     
     if(!path || path.length === 0){
-      appendLog(`${u.name} 看见你了失败：无法找到沿墙路径`);
-      return unitActed(u);
+      // Fallback: Try to move along any available wall cell to avoid complete failure
+      const adj = range_adjacent(u);
+      const wallMoves = [];
+      for(const pos of adj){
+        if(canLiratheMoveOnHighGround(u, pos.r, pos.c)){
+          wallMoves.push(pos);
+        }
+      }
+      
+      if(wallMoves.length > 0){
+        // Move to a random available wall cell
+        const move = wallMoves[Math.floor(Math.random() * wallMoves.length)];
+        const oldR = u.r, oldC = u.c;
+        u.r = move.r;
+        u.c = move.c;
+        setUnitFacing(u, move.dir || u.facing);
+        cameraFocusOnCell(u.r, u.c);
+        renderAll();
+        appendLog(`${u.name} 看见你了！沿墙移动 1 步探索（从 (${oldR},${oldC}) 到 (${u.r},${u.c})）`);
+        return unitActed(u);
+      } else {
+        appendLog(`${u.name} 看见你了：已在最优位置，保持当前姿态`);
+        return unitActed(u);
+      }
     }
     
     // Move step-by-step along the wall path with animation
@@ -4677,7 +4699,7 @@ function buildSkillFactoriesForUnit(u){
           {aoe:true},
           {castMs:1100}
         )},
-        { key:'又想逃？', prob:0.40, cond:()=>true, make:()=> skill('又想逃？',2,'blue','移动到任意2格，对相邻敌人造成5HP（贴墙则可移动4格）',
+        { key:'又想逃？', prob:1.0, cond:()=>true, make:()=> skill('又想逃？',2,'blue','移动到任意2格，对相邻敌人造成5HP（贴墙则可移动4格）',
           (uu)=> {
             // Check if unit is adjacent to a wall/cover or map edge
             const nearWall = range_adjacent(uu).some(p=> isCoverCell(p.r, p.c)) || isAdjacentToWall(uu.r, uu.c);
@@ -6031,6 +6053,18 @@ function processUnitsTurnEnd(side){
       if(u.id === 'lirathe' && next === 0 && u._weaknessVulnerable){
         u._weaknessVulnerable = false;
         appendLog(`${u.name} 恢复正常`);
+        
+        // If Lirathe is not on high ground after stun ends from weakness cell, try to climb back
+        if(u._transformed && !u._highGround && u.passives.includes('liratheClimbing')){
+          // Attempt to climb back to high ground immediately
+          if(tryLiratheClimbing(u)){
+            appendLog(`${u.name} 眩晕结束后立即重新攀爬到高处！`);
+            renderAll();
+          } else {
+            // If can't climb immediately, mark for climbing priority in next turn
+            appendLog(`${u.name} 眩晕结束，将在下回合优先攀爬回高处`);
+          }
+        }
       }
     }
     // Decrease immobilized stacks
