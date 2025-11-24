@@ -150,6 +150,7 @@ function createUnit(id, name, side, level, r, c, maxHp, maxSp, restoreOnZeroPct,
     size: extra.size || 1,
     hp: maxHp, maxHp,
     sp: maxSp, maxSp,
+    minSp: extra.minSp !== undefined ? extra.minSp : 0, // SP lower limit (can be negative)
     restoreOnZeroPct, spZeroHpPenalty,
     facing: side==='player' ? 'right' : 'left',
     status: {
@@ -2374,6 +2375,16 @@ function handleUnitDeath(u, source){
     // Start consciousness flower and healing tile timers
     u._consciousnessFlowerRounds = 0;
     u._healingTileRounds = 0;
+    
+    // Switch BGM to Lirathe Phase 2 music
+    if(bossBGM){
+      bossBGM.pause();
+      bossBGM.src = 'Lirathe2.mp3';
+      bossBGM.load();
+      bossBGM.volume = 0.6;
+      bossBGM.play().catch(e => console.log('Lirathe Phase 2 BGM play failed:', e));
+      appendLog('BGM 切换至 Lirathe 第二形态');
+    }
     
     renderAll();
     return; // Don't process normal death
