@@ -2365,6 +2365,7 @@ function handleUnitDeath(u, source){
           if(!getUnitAt(pos.r, pos.c)){
             occupant.r = pos.r;
             occupant.c = pos.c;
+            checkTilesAfterMove(occupant);
             appendLog(`${occupant.name} 被Lirathe的影之形态挤开到 (${pos.r},${pos.c})`);
             break;
           }
@@ -2374,6 +2375,7 @@ function handleUnitDeath(u, source){
     
     u.r = targetR;
     u.c = targetC;
+    checkTilesAfterMove(u);
     
     appendLog('=====================');
     appendLog('Lirathe 进入第二阶段！');
@@ -2477,6 +2479,7 @@ function adoraPanicMove(u, payload){
     setUnitFacing(u, dir);
   }
   u.r=dest.r; u.c=dest.c; pulseCell(u.r,u.c);
+  checkTilesAfterMove(u);
   showSkillFx('adora:呀！你不要靠近我呀！！',{target:u});
   for(const d of Object.keys(DIRS)){
     const cell = forwardCellAt(u,d,1); if(!cell) continue;
@@ -2519,6 +2522,7 @@ function darioSwiftMove(u, payload){
     setUnitFacing(u, dir);
   }
   u.r=dest.r; u.c=dest.c; pulseCell(u.r,u.c);
+  checkTilesAfterMove(u);
   showSkillFx('dario:迅捷步伐',{target:u});
   const enemies = Object.values(units).filter(x=>x.side!==u.side && x.hp>0);
   if(enemies.length){
@@ -2547,6 +2551,7 @@ function darioPull(u, targetOrDesc){
       appendLog(`${u.name} 将 ${target.name} 拉到 (${placement.r}, ${placement.c})`);
       showTrail(target.r, target.c, placement.r, placement.c);
       target.r = placement.r; target.c = placement.c; pulseCell(target.r, target.c);
+      checkTilesAfterMove(target);
     } else {
       appendLog('前方无空位，改为直接造成冲击效果');
     }
@@ -2642,6 +2647,7 @@ async function adoraAssassination(u, target){
     u.r = teleportDest.r;
     u.c = teleportDest.c;
     pulseCell(u.r, u.c);
+    checkTilesAfterMove(u);
     const newDir = cardinalDirFromDelta(target.r - u.r, target.c - u.c);
     setUnitFacing(u, newDir);
     appendLog(`${u.name} 瞬移到 ${target.name} 后侧`);
@@ -2778,6 +2784,7 @@ function karmaObeyMove(u, payload){
     setUnitFacing(u, dir);
   }
   u.r = dest.r; u.c = dest.c; pulseCell(u.r,u.c);
+  checkTilesAfterMove(u);
   showSkillFx('karma:都听你的',{target:u});
   if(u.consecAttacks > 0){ appendLog(`${u.name} 的连击被打断（移动）`); u.consecAttacks = 0; }
   u.sp = Math.min(u.maxSp, u.sp + 5); syncSpBroken(u); showGainFloat(u,0,5);
@@ -3033,7 +3040,7 @@ async function haz_DeepHunt(u, desc){
   cameraFocusOnCell(target.r, target.c);
   damageUnit(target.id, dmg, 0, `${u.name} 深海猎杀 命中 ${target.name}`, u.id,{skillFx:'haz:深海猎杀'});
   const front = forwardCellAt(u, dir, 1);
-  if(front && !getUnitAt(front.r, front.c)){ target.r = front.r; target.c = front.c; pulseCell(front.r, front.c); appendLog(`${target.name} 被拉至面前一格`); }
+  if(front && !getUnitAt(front.r, front.c)){ target.r = front.r; target.c = front.c; pulseCell(front.r, front.c); checkTilesAfterMove(target); appendLog(`${target.name} 被拉至面前一格`); }
   const reduced = applySpDamage(target,10,{sourceId:u.id});
   appendLog(`${target.name} SP -${reduced}`);
   if(!hazMarkedTargetId){ hazMarkedTargetId = target.id; appendLog(`猎杀标记：${target.name} 被标记，七海对其伤害 +15%`); }
@@ -3045,7 +3052,7 @@ async function haz_GodFork(u, target){
   const adj = range_adjacent(target);
   let dest = null, best=1e9;
   for(const p of adj){ if(getUnitAt(p.r,p.c)) continue; const d = mdist(u, p); if(d<best){best=d; dest=p;} }
-  if(dest){ u.r=dest.r; u.c=dest.c; pulseCell(u.r,u.c); appendLog(`${u.name} 瞬移至 ${target.name} 身边`); }
+  if(dest){ u.r=dest.r; u.c=dest.c; pulseCell(u.r,u.c); checkTilesAfterMove(u); appendLog(`${u.name} 瞬移至 ${target.name} 身边`); }
   let dmg = calcOutgoingDamage(u,20,target,'猎神之叉');
   if(Math.random()<0.5){ dmg = Math.round(dmg*2.0); appendLog('猎神之叉 暴怒加成 x2.0'); }
   cameraFocusOnCell(target.r, target.c);
@@ -3210,7 +3217,7 @@ async function tusk_ShieldBash(u,target){
   damageUnit(target.id, dmg, 0, `${u.name} 骨盾猛击 ${target.name}`, u.id,{skillFx:'tusk:骨盾猛击'});
   const dir = cardinalDirFromDelta(target.r-u.r, target.c-u.c);
   const back = forwardCellAt(target, dir, 1);
-  if(back && !getUnitAt(back.r, back.c)){ target.r=back.r; target.c=back.c; pulseCell(back.r,back.c); appendLog(`${target.name} 被击退一格`); }
+  if(back && !getUnitAt(back.r, back.c)){ target.r=back.r; target.c=back.c; pulseCell(back.r,back.c); checkTilesAfterMove(target); appendLog(`${target.name} 被击退一格`); }
   u.dmgDone += dmg; unitActed(u);
 }
 async function tusk_DeepRoar(u){
@@ -3271,16 +3278,17 @@ async function tusk_BullCharge(u, desc){
     else break;
   }
   if(hitTarget){
-    if(lastFree){ showTrail(u.r,u.c,lastFree.r,lastFree.c); u.r=lastFree.r; u.c=lastFree.c; pulseCell(u.r,u.c); }
+    if(lastFree){ showTrail(u.r,u.c,lastFree.r,lastFree.c); u.r=lastFree.r; u.c=lastFree.c; pulseCell(u.r,u.c); checkTilesAfterMove(u); }
     const dmg = calcOutgoingDamage(u,20,hitTarget,'牛鲨冲撞');
     cameraFocusOnCell(hitTarget.r, hitTarget.c);
     damageUnit(hitTarget.id, dmg, 0, `${u.name} 牛鲨冲撞 命中并撞击 ${hitTarget.name}`, u.id,{skillFx:'tusk:牛鲨冲撞'});
     const knockDir = cardinalDirFromDelta(hitTarget.r - u.r, hitTarget.c - u.c);
     const back = forwardCellAt(hitTarget, knockDir, 1);
-    if(back && !getUnitAt(back.r, back.c)){ hitTarget.r=back.r; hitTarget.c=back.c; pulseCell(back.r, back.c); appendLog(`${hitTarget.name} 被撞退一格`); }
+    if(back && !getUnitAt(back.r, back.c)){ hitTarget.r=back.r; hitTarget.c=back.c; pulseCell(back.r, back.c); checkTilesAfterMove(hitTarget); appendLog(`${hitTarget.name} 被撞退一格`); }
   } else if(lastFree){
     showTrail(u.r,u.c,lastFree.r,lastFree.c);
     u.r=lastFree.r; u.c=lastFree.c; pulseCell(u.r,u.c);
+    checkTilesAfterMove(u);
     appendLog(`${u.name} 牛鲨冲撞：无人命中，移动至终点`);
   } else {
     appendLog('牛鲨冲撞：无法前进');
@@ -3346,6 +3354,7 @@ async function neyla_DoubleHook(u, desc){
   if(stepCell && !getUnitAt(stepCell.r, stepCell.c)){
     showTrail(target.r,target.c, stepCell.r, stepCell.c);
     target.r = stepCell.r; target.c = stepCell.c; pulseCell(target.r,target.c);
+    checkTilesAfterMove(target);
     appendLog(`${target.name} 被双钩拉近一格`);
   }
   addStatusStacks(target,'paralyzed',1,{label:'恐惧', type:'debuff'});
@@ -3440,13 +3449,14 @@ function kynReturnToHaz(u){
   let best=adj[0], bestD=mdist(u,adj[0]);
   for(const p of adj){ const d=mdist(u,p); if(d<bestD){ best=p; bestD=d; } }
   u.r = best.r; u.c = best.c; pulseCell(u.r,u.c);
+  checkTilesAfterMove(u);
   appendLog(`${u.name} 迅影返身：回归队长身侧`);
 }
 async function kyn_ShadowDash(u, target){
   if(!target || target.side===u.side){ appendLog('迅影突刺 目标无效'); return; }
   await telegraphThenImpact([{r:target.r,c:target.c}]);
   const adj = range_adjacent(target).filter(p=>!getUnitAt(p.r,p.c));
-  if(adj.length){ const p=adj[0]; u.r=p.r; u.c=p.c; pulseCell(u.r,u.c); }
+  if(adj.length){ const p=adj[0]; u.r=p.r; u.c=p.c; pulseCell(u.r,u.c); checkTilesAfterMove(u); }
   const thresh = Math.ceil(target.maxHp*0.25);
   let executed = false;
 
@@ -3515,6 +3525,7 @@ async function kyn_ShadowDance_AOE(u){
     const p = neigh[0];
     showTrail(u.r,u.c,p.r,p.c);
     u.r=p.r; u.c=p.c; pulseCell(u.r,u.c);
+    checkTilesAfterMove(u);
     appendLog(`${u.name} 影杀之舞：免费位移 1 格`);
   }
   unitActed(u);
@@ -3543,6 +3554,7 @@ async function lirathe_DashSlash(u, desc){
   if(newR!==u.r || newC!==u.c){
     showTrail(u.r,u.c,newR,newC);
     u.r=newR; u.c=newC;
+    checkTilesAfterMove(u);
   }
   
   if(finalTarget){
@@ -3565,6 +3577,7 @@ async function lirathe_EscapeMove(u, payload){
   const prevR=u.r, prevC=u.c;
   u.r=r; u.c=c;
   if(dir) setUnitFacing(u, dir);
+  checkTilesAfterMove(u);
   showTrail(prevR,prevC,r,c);
   appendLog(`${u.name} 又想逃？ 移动至 (${r},${c})`);
   
@@ -3758,6 +3771,7 @@ async function lirathe_SplashBlade(u, desc){
         u.r = pos.r;
         u.c = pos.c;
         setUnitFacing(u, pos.dir);
+        checkTilesAfterMove(u);
         appendLog(`${u.name} 冲到 ${firstTarget.name} 面前`);
         renderAll();
         moved = true;
@@ -3836,6 +3850,7 @@ async function lirathe_ChargeKill(u, desc){
   if(newR!==u.r || newC!==u.c){
     showTrail(u.r,u.c,newR,newC);
     u.r=newR; u.c=newC;
+    checkTilesAfterMove(u);
   }
   
   renderAll();
@@ -3941,6 +3956,7 @@ async function lirathe_CantFindWay(u){
       if(endPos){
         u.r = endPos.r;
         u.c = endPos.c;
+        checkTilesAfterMove(u);
         appendLog(`${u.name} 冲到 ${dir} 方向 (${endPos.r},${endPos.c})`);
         renderAll();
       }
@@ -4073,6 +4089,7 @@ async function lirathe_ISeeYou(u){
       u.r = step.r;
       u.c = step.c;
       setUnitFacing(u, faceDir);
+      checkTilesAfterMove(u);
       enemySteps = Math.max(0, enemySteps - 1);
       updateStepsUI();
 
@@ -4105,6 +4122,7 @@ async function lirathe_ISeeYou(u){
     // Teleport to edge
     u.r = nearestEdge.r;
     u.c = nearestEdge.c;
+    checkTilesAfterMove(u);
     
     // Show visual feedback
     cameraFocusOnCell(u.r, u.c);
@@ -5833,11 +5851,7 @@ function onCellClick(r,c){
   sel.r=r; sel.c=c;
   
   // Check tiles immediately after movement
-  if(sel.side === 'player'){
-    checkHealingTilesForUnit(sel);
-    checkSpiderWebsForUnit(sel);
-  }
-  checkWeaknessTilesForUnit(sel);
+  checkTilesAfterMove(sel);
   
   if(sel.side==='player') playerSteps=Math.max(0, playerSteps-1); else enemySteps=Math.max(0, enemySteps-1);
   appendLog(`${sel.name} 移动到 (${r},${c})`);
@@ -6517,6 +6531,16 @@ function checkWeaknessTiles(){
       checkWeaknessTilesForUnit(u);
     }
   }
+}
+
+// Unified function to check all special tiles after any unit movement
+function checkTilesAfterMove(u){
+  if(!u || u.hp<=0) return;
+  if(u.side === 'player'){
+    checkHealingTilesForUnit(u);
+    checkSpiderWebsForUnit(u);
+  }
+  checkWeaknessTilesForUnit(u);
 }
 
 function finishEnemyTurn(){
