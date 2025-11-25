@@ -2076,8 +2076,10 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
     }
   }
   
-  // Lirathe high ground evasion - dodges all attacks when on high ground (except from _fullDamage attackers)
-  if(u.id === 'lirathe' && u._transformed && u._highGround && !opts.ignoreHighGround && !source._fullDamage){
+  // Lirathe high ground evasion - dodges HP-focused attacks when on high ground (except from _fullDamage attackers)
+  // Allow pure SP damage to still apply while on high ground so SP-only hits are not negated
+  const spOnlyDamage = hpDmg <= 0 && spDmg > 0;
+  if(u.id === 'lirathe' && u._transformed && u._highGround && !opts.ignoreHighGround && !source._fullDamage && !spOnlyDamage){
     appendLog(`${u.name} 在高处：闪避所有攻击！`);
     showStatusFloat(u,'闪避',{type:'buff', offsetY:-48});
     pulseCell(u.r,u.c);
@@ -6194,6 +6196,14 @@ function processUnitsTurnStart(side){
       }
     }
 
+    if(u.id==='lirathe' && u._transformed && u.spPendingRestore==null){
+      const crashThreshold = u.spCrashThreshold !== undefined ? u.spCrashThreshold : -100;
+      if(u.sp <= crashThreshold){
+        u.spPendingRestore = 0;
+        appendLog(`${u.name} 的 SP 崩溃：下个己方回合自动恢复至 0`);
+      }
+    }
+
     if(u.spPendingRestore!=null){
       let val = Math.min(u.maxSp, u.spPendingRestore);
       // Dario quickAdjust passive: Additional 25% SP restore
@@ -6333,11 +6343,13 @@ function processUnitsTurnEnd(side){
       const next = Math.max(0, u.status.stunned-1);
       updateStatusStacks(u,'stunned', next, {label:'眩晕', type:'debuff'});
       appendLog(`${u.name} 的眩晕减少 1（剩余 ${u.status.stunned}）`);
-      if(u.id === 'lirathe' && next === 0 && u._weaknessVulnerable){
-        u._weaknessVulnerable = false;
-        appendLog(`${u.name} 恢复正常`);
+      if(u.id === 'lirathe' && next === 0){
+        if(u._weaknessVulnerable){
+          u._weaknessVulnerable = false;
+          appendLog(`${u.name} 恢复正常`);
+        }
 
-        // If Lirathe is not on high ground after stun ends from weakness cell, try to climb back
+        // If Lirathe is not on high ground after stun ends, make sure she is queued to climb back up
         if(u._transformed && !u._highGround && u.passives.includes('liratheClimbing')){
           u._needsReclimb = true;
           if(forceLiratheReturnToHighGround(u, '眩晕结束后立即重新登上高处')){
