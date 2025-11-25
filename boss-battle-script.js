@@ -2141,14 +2141,11 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
     appendLog(`${u.name} 因 SP 崩溃眩晕承受双倍伤害！`);
   }
   
-  // Lirathe weakness vulnerability - DISABLED (weakness tiles no longer have effect)
-  /*
   if(u._weaknessVulnerable && (hpDmg>0 || spDmg>0)){
     hpDmg = Math.round(hpDmg * 1.5);
     spDmg = Math.round(spDmg * 1.5);
     appendLog(`${u.name} 因软肋承受额外伤害！`);
   }
-  */
 
   const prevHp = u.hp;
   let finalHp = Math.max(0, hpDmg);
@@ -5769,9 +5766,9 @@ function onCellClick(r,c){
   // Check tiles immediately after movement
   if(sel.side === 'player'){
     checkHealingTilesForUnit(sel);
-    checkWeaknessTilesForUnit(sel);
     checkSpiderWebsForUnit(sel);
   }
+  checkWeaknessTilesForUnit(sel);
   
   if(sel.side==='player') playerSteps=Math.max(0, playerSteps-1); else enemySteps=Math.max(0, enemySteps-1);
   appendLog(`${sel.name} 移动到 (${r},${c})`);
@@ -6152,12 +6149,10 @@ function processUnitsTurnEnd(side){
       const next = Math.max(0, u.status.stunned-1);
       updateStatusStacks(u,'stunned', next, {label:'眩晕', type:'debuff'});
       appendLog(`${u.name} 的眩晕减少 1（剩余 ${u.status.stunned}）`);
-      // Weakness vulnerability cleanup - DISABLED (weakness tiles no longer have effect)
-      /*
       if(u.id === 'lirathe' && next === 0 && u._weaknessVulnerable){
         u._weaknessVulnerable = false;
         appendLog(`${u.name} 恢复正常`);
-        
+
         // If Lirathe is not on high ground after stun ends from weakness cell, try to climb back
         if(u._transformed && !u._highGround && u.passives.includes('liratheClimbing')){
           // Attempt to climb back to high ground immediately
@@ -6170,7 +6165,6 @@ function processUnitsTurnEnd(side){
           }
         }
       }
-      */
     }
     // Decrease immobilized stacks
     if(u.status.immobilizedStacks && u.status.immobilizedStacks > 0){
@@ -6410,14 +6404,11 @@ function createWeaknessTile(r, c){
 }
 
 function checkWeaknessTilesForUnit(u){
-  // Weakness tiles are now disabled - no effect
-  return;
-  /*
   if(!window._weaknessTiles) return;
   const lirathe = units['lirathe'];
   if(!lirathe || lirathe.hp <= 0 || !lirathe._transformed) return;
-  if(!u || u.hp<=0 || u.side!=='player') return;
-  
+  if(!u || u.hp<=0) return;
+
   const key = `${u.r},${u.c}`;
   if(window._weaknessTiles.has(key) && lirathe._highGround){
     // Lirathe falls down
@@ -6428,7 +6419,6 @@ function checkWeaknessTilesForUnit(u){
     window._weaknessTiles.delete(key);
     renderAll();
   }
-  */
 }
 
 function checkSpiderWebsForUnit(u){
@@ -6448,20 +6438,16 @@ function checkSpiderWebsForUnit(u){
 }
 
 function checkWeaknessTiles(){
-  // Weakness tiles are now disabled - no effect
-  return;
-  /*
   if(!window._weaknessTiles) return;
   const lirathe = units['lirathe'];
   if(!lirathe || lirathe.hp <= 0 || !lirathe._transformed) return;
-  
+
   for(const id in units){
     const u = units[id];
-    if(u && u.hp>0 && u.side==='player'){
+    if(u && u.hp>0){
       checkWeaknessTilesForUnit(u);
     }
   }
-  */
 }
 
 function finishEnemyTurn(){
