@@ -2391,10 +2391,14 @@ function handleUnitDeath(u, source){
     // Switch BGM to Lirathe Phase 2 music
     if(bossBGM){
       bossBGM.pause();
+      bossBGM.currentTime = 0;
       bossBGM.src = 'Lirathe2.mp3';
       bossBGM.load();
+      bossBGM.loop = true;
       bossBGM.volume = 0.6;
-      bossBGM.play().catch(e => console.log('Lirathe Phase 2 BGM play failed:', e));
+      const playPhase2 = ()=> bossBGM.play().catch(e => console.log('Lirathe Phase 2 BGM play failed:', e));
+      bossBGM.addEventListener('canplay', playPhase2, {once:true});
+      playPhase2();
       appendLog('BGM 切换至 Lirathe 第二形态');
     }
     
@@ -3580,7 +3584,9 @@ async function lirathe_EscapeMove(u, payload){
   checkTilesAfterMove(u);
   showTrail(prevR,prevC,r,c);
   appendLog(`${u.name} 又想逃？ 移动至 (${r},${c})`);
-  
+
+  checkTilesAfterMove(u);
+
   // Check adjacent enemies and deal 5HP
   const adj = range_adjacent(u);
   for(const p of adj){
@@ -3827,13 +3833,28 @@ async function lirathe_ChargeKill(u, desc){
   setUnitFacing(u, dir);
   const line = range_two_rows(u,dir);
   await telegraphThenImpact(line);
-  
+
   const seen=new Set();
   let newR=u.r, newC=u.c;
-  
+
   for(const c of line){
     const tu=getUnitAt(c.r,c.c);
-    if(tu && tu.side!=='enemy'){
+    // Only move to cells that are not at the absolute edge of the map
+    if((!tu || tu===u) && c.r > 1 && c.r < ROWS && c.c > 1 && c.c < COLS){
+      newR=c.r; newC=c.c;
+    }
+  }
+
+  if(newR!==u.r || newC!==u.c){
+    showTrail(u.r,u.c,newR,newC);
+    u.r=newR; u.c=newC;
+    checkTilesAfterMove(u);
+    renderAll();
+  }
+
+  for(const c of line){
+    const tu=getUnitAt(c.r,c.c);
+    if(tu && tu.side!=='enemy' && !seen.has(tu.id)){
       damageUnit(tu.id, 20, 10, `${u.name} 冲杀 ${tu.name}`, u.id, {skillName:'冲杀'});
       // Add corrosion
       if(!tu.status.corrosionStacks) tu.status.corrosionStacks = 0;
@@ -3841,18 +3862,8 @@ async function lirathe_ChargeKill(u, desc){
       updateStatusStacks(tu,'corrosionStacks',tu.status.corrosionStacks,{label:'腐蚀',type:'debuff'});
       seen.add(tu.id);
     }
-    // Only move to cells that are not at the absolute edge of the map
-    if((!tu || tu===u) && c.r > 1 && c.r < ROWS && c.c > 1 && c.c < COLS){ 
-      newR=c.r; newC=c.c; 
-    }
   }
-  
-  if(newR!==u.r || newC!==u.c){
-    showTrail(u.r,u.c,newR,newC);
-    u.r=newR; u.c=newC;
-    checkTilesAfterMove(u);
-  }
-  
+
   renderAll();
   unitActed(u);
 }
@@ -5412,6 +5423,7 @@ function forceLiratheReturnToHighGround(u, reason='重新登上高处'){
     u.r = dest.r; u.c = dest.c; u._highGround = true; u._needsReclimb = false;
     appendLog(`${u.name} ${reason}：从 (${prevR},${prevC}) 移动到 (${dest.r},${dest.c})`);
     showStatusFloat(u,'高处',{type:'buff'});
+    checkTilesAfterMove(u);
     return true;
   }
 
@@ -5896,13 +5908,9 @@ function onCellClick(r,c){
   sel._moveDistanceThisTurn += moveDist;
   
   sel.r=r; sel.c=c;
-  
+
   // Check tiles immediately after movement
-  if(sel.side === 'player'){
-    checkHealingTilesForUnit(sel);
-    checkSpiderWebsForUnit(sel);
-  }
-  checkWeaknessTilesForUnit(sel);
+  checkTilesAfterMove(sel);
   
   if(sel.side==='player') playerSteps=Math.max(0, playerSteps-1); else enemySteps=Math.max(0, enemySteps-1);
   appendLog(`${sel.name} 移动到 (${r},${c})`);
@@ -6123,9 +6131,14 @@ function processUnitsTurnStart(side){
     applyAccessoryEffects(u, side);
 
     // Lirathe: if previously knocked down by weakness tiles, immediately reclaim high ground
-    if(u.id==='lirathe' && u._transformed && u.passives.includes('liratheClimbing') && u._needsReclimb){
-      if(forceLiratheReturnToHighGround(u, '优先重新登上高处')){
-        renderAll();
+    if(u.id==='lirathe' && u._transformed && u.passives.includes('liratheClimbing')){
+      if(!u._highGround && !u.status.stunned){
+        u._needsReclimb = true;
+      }
+      if(u._needsReclimb && !u.status.stunned){
+        if(forceLiratheReturnToHighGround(u, '优先重新登上高处')){
+          renderAll();
+        }
       }
     }
 
@@ -6296,6 +6309,7 @@ function processUnitsTurnEnd(side){
 
         // If Lirathe is not on high ground after stun ends from weakness cell, try to climb back
         if(u._transformed && !u._highGround && u.passives.includes('liratheClimbing')){
+          u._needsReclimb = true;
           if(forceLiratheReturnToHighGround(u, '眩晕结束后立即重新登上高处')){
             renderAll();
           } else {
@@ -6530,6 +6544,15 @@ function checkHealingTiles(){
       checkHealingTilesForUnit(u);
     }
   }
+}
+
+function checkTilesAfterMove(u){
+  if(!u) return;
+  if(u.side === 'player'){
+    checkHealingTilesForUnit(u);
+    checkSpiderWebsForUnit(u);
+  }
+  checkWeaknessTilesForUnit(u);
 }
 
 function createWeaknessTile(r, c){
