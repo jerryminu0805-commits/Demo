@@ -40,6 +40,12 @@ const STAGE_MS     = 360;
 
 const DEBUG_AI = false;
 function aiLog(u,msg){ if(DEBUG_AI) appendLog(`[AI] ${u.name}: ${msg}`); }
+function beginAction(){ pendingActionCount++; }
+function endAction(){ pendingActionCount = Math.max(0, pendingActionCount-1); }
+function whenActionsSettled(fn){
+  if(pendingActionCount>0){ setTimeout(()=> whenActionsSettled(fn), 120); return; }
+  fn();
+}
 
 const inventory = { pistol: false };
 
@@ -78,6 +84,7 @@ let enemyActionCameraLock = false;
 let cameraLoopHandle = null;
 let cameraDragState = null;
 let cameraInputsRegistered = false;
+let pendingActionCount = 0;
 
 const cameraState = {
   x: 0,
@@ -5870,13 +5877,17 @@ function handleSkillConfirmCell(u, sk, aimCell){
   }
 
   const targetUnit = getUnitAt(aimCell.r, aimCell.c);
+  beginAction();
+  let execResult;
   try{
-    if(sk.meta && sk.meta.moveSkill) sk.execFn(u, {moveTo: aimCell});
-    else if(sk.meta && sk.meta.cellTargeting) sk.execFn(u, aimCell);
-    else if(sk.estimate && sk.estimate.aoe) sk.execFn(u, {dir:aimDir});
-    else if(targetUnit) sk.execFn(u, targetUnit);
-    else sk.execFn(u, {r:aimCell.r,c:aimCell.c,dir:aimDir});
-  }catch(e){ console.error('技能执行错误',e); appendLog(`[错误] 技能执行失败：${sk.name} - ${e.message}`); }
+    if(sk.meta && sk.meta.moveSkill) execResult = sk.execFn(u, {moveTo: aimCell});
+    else if(sk.meta && sk.meta.cellTargeting) execResult = sk.execFn(u, aimCell);
+    else if(sk.estimate && sk.estimate.aoe) execResult = sk.execFn(u, {dir:aimDir});
+    else if(targetUnit) execResult = sk.execFn(u, targetUnit);
+    else execResult = sk.execFn(u, {r:aimCell.r,c:aimCell.c,dir:aimDir});
+  }catch(e){ console.error('技能执行错误',e); appendLog(`[错误] 技能执行失败：${sk.name} - ${e.message}`); endAction(); return; }
+
+  Promise.resolve(execResult).catch(()=>{}).finally(()=>{ endAction(); checkEndOfTurn(); });
 
   consumeCardFromHand(u, sk);
   clearSkillAiming();
@@ -5889,7 +5900,6 @@ function handleSkillConfirmCell(u, sk, aimCell){
   }
 
   unitActed(u);
-  setTimeout(()=>{ checkEndOfTurn(); }, 220);
 }
 function onUnitClick(id){
   if(interactionLocked) return;
@@ -6337,6 +6347,9 @@ function processUnitsTurnEnd(side){
             u._needsReclimb = true;
           }
         }
+        if(u._transformed){
+          ensureStartHand(u);
+        }
       }
     }
     // Decrease immobilized stacks
@@ -6642,6 +6655,7 @@ function checkWeaknessTiles(){
 }
 
 function finishEnemyTurn(){
+  if(pendingActionCount>0){ whenActionsSettled(()=> finishEnemyTurn()); return; }
   clearAIWatchdog();
   processUnitsTurnEnd('enemy');
   roundsPassed += 1;
@@ -7017,6 +7031,8 @@ async function execEnemySkillCandidate(en, cand){
   enemySteps = Math.max(0, enemySteps - cand.sk.cost);
   updateStepsUI();
 
+  beginAction();
+
   const cells = cand.targetUnit
     ? [{r:cand.targetUnit.r, c:cand.targetUnit.c}]
     : computeCellsForSkill(en, cand.dir, cand.dir);
@@ -7056,6 +7072,8 @@ async function execEnemySkillCandidate(en, cand){
     console.error('AI 技能施放错误', e);
     appendLog(`[AI错误] ${en.name} 施放 ${cand.sk.name} 失败：${e.message}`);
     return false;
+  } finally {
+    endAction();
   }
 }
 function stepTowardNearestPlayer(en){
@@ -7177,9 +7195,17 @@ async function exhaustEnemySteps(){
       if(en.status.stunned){ aiLog(en,'眩晕跳过'); continue; }
       if(!en.dealtStart) ensureStartHand(en);
       if(en.id==='neyla' && en.oppression) ensureNeylaEndShadowGuarantee(en);
-      
+
       // Lirathe Phase 2 AI: High Ground Priority + Wall-Hugging Attack Strategy
       let liratheSpecialMovement = false;
+      if(en.id==='lirathe' && en._transformed && en.passives.includes('liratheClimbing') && en._needsReclimb && !en.status.stunned){
+        if(forceLiratheReturnToHighGround(en, '眩晕恢复后重新登上高处')){
+          renderAll();
+          liratheSpecialMovement = true;
+          progressedThisRound = true;
+          await aiAwait(200);
+        }
+      }
       if(en.id === 'lirathe' && en._transformed && en.passives.includes('liratheClimbing') && !en.status.stunned){
         // Check if there are visible targets
         let hasVisibleTargets = false;
@@ -7487,6 +7513,7 @@ function renderAll(){
   if(checkWin()) return;
 }
 function checkEndOfTurn(){
+  if(pendingActionCount>0){ whenActionsSettled(()=> checkEndOfTurn()); return; }
   if(currentSide==='player' && playerSteps<=0){
     appendLog('玩家步数耗尽，轮到敌方');
     processUnitsTurnEnd('player');
