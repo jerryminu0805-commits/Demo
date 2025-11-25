@@ -4089,7 +4089,6 @@ async function lirathe_ISeeYou(u){
       u.r = step.r;
       u.c = step.c;
       setUnitFacing(u, faceDir);
-      checkTilesAfterMove(u);
       enemySteps = Math.max(0, enemySteps - 1);
       updateStepsUI();
 
@@ -5395,6 +5394,54 @@ function tryLiratheClimbing(u){
   return false;
 }
 
+// Force Lirathe back to high ground by either climbing immediately or relocating to the nearest open perimeter cell
+function forceLiratheReturnToHighGround(u, reason='重新登上高处'){
+  if(!u || u.id !== 'lirathe' || !u._transformed || u._highGround) return false;
+
+  // Try climbing in place if possible
+  if(tryLiratheClimbing(u)){
+    u._needsReclimb = false;
+    appendLog(`${u.name} ${reason}`);
+    return true;
+  }
+
+  // Otherwise, relocate to the nearest available perimeter cell
+  const dest = findNearestHighGroundCell(u);
+  if(dest){
+    const prevR = u.r, prevC = u.c;
+    u.r = dest.r; u.c = dest.c; u._highGround = true; u._needsReclimb = false;
+    appendLog(`${u.name} ${reason}：从 (${prevR},${prevC}) 移动到 (${dest.r},${dest.c})`);
+    showStatusFloat(u,'高处',{type:'buff'});
+    return true;
+  }
+
+  return false;
+}
+
+// Find the nearest perimeter position Lirathe can legally occupy (respecting 2x2 footprint)
+function findNearestHighGroundCell(u){
+  if(!u) return null;
+  let best = null;
+  let bestDist = Infinity;
+
+  for(let r=1; r<=ROWS; r++){
+    for(let c=1; c<=COLS; c++){
+      if(!isPerimeterCell(r,c)) continue;
+
+      const fits = u.size === 2 ? canPlace2x2(u, r, c) : clampCell(r, c);
+      if(!fits) continue;
+
+      const dist = mdist({r:u.r, c:u.c}, {r, c});
+      if(dist < bestDist){
+        bestDist = dist;
+        best = {r, c};
+      }
+    }
+  }
+
+  return best;
+}
+
 // Helper function to check if cell is adjacent to a wall
 function isAdjacentToWall(r, c){
   const directions = [{dr:-1,dc:0}, {dr:1,dc:0}, {dr:0,dc:-1}, {dr:0,dc:1}];
@@ -5851,7 +5898,11 @@ function onCellClick(r,c){
   sel.r=r; sel.c=c;
   
   // Check tiles immediately after movement
-  checkTilesAfterMove(sel);
+  if(sel.side === 'player'){
+    checkHealingTilesForUnit(sel);
+    checkSpiderWebsForUnit(sel);
+  }
+  checkWeaknessTilesForUnit(sel);
   
   if(sel.side==='player') playerSteps=Math.max(0, playerSteps-1); else enemySteps=Math.max(0, enemySteps-1);
   appendLog(`${sel.name} 移动到 (${r},${c})`);
@@ -6071,6 +6122,13 @@ function processUnitsTurnStart(side){
     u._tutorialSpImmuneUsed = false;
     applyAccessoryEffects(u, side);
 
+    // Lirathe: if previously knocked down by weakness tiles, immediately reclaim high ground
+    if(u.id==='lirathe' && u._transformed && u.passives.includes('liratheClimbing') && u._needsReclimb){
+      if(forceLiratheReturnToHighGround(u, '优先重新登上高处')){
+        renderAll();
+      }
+    }
+
     const extraDraw = Math.max(0, u.turnsStarted);
     if(extraDraw>0) drawSkills(u, extraDraw);
 
@@ -6238,13 +6296,11 @@ function processUnitsTurnEnd(side){
 
         // If Lirathe is not on high ground after stun ends from weakness cell, try to climb back
         if(u._transformed && !u._highGround && u.passives.includes('liratheClimbing')){
-          // Attempt to climb back to high ground immediately
-          if(tryLiratheClimbing(u)){
-            appendLog(`${u.name} 眩晕结束后立即重新攀爬到高处！`);
+          if(forceLiratheReturnToHighGround(u, '眩晕结束后立即重新登上高处')){
             renderAll();
           } else {
-            // If can't climb immediately, mark for climbing priority in next turn
             appendLog(`${u.name} 眩晕结束，将在下回合优先攀爬回高处`);
+            u._needsReclimb = true;
           }
         }
       }
@@ -6498,6 +6554,7 @@ function checkWeaknessTilesForUnit(u){
     lirathe._highGround = false;
     addStatusStacks(lirathe, 'stunned', 1, {label:'眩晕', type:'debuff'});
     lirathe._weaknessVulnerable = true; // Take 50% more damage
+    lirathe._needsReclimb = true; // Mark that Lirathe must climb back after the stun
     appendLog(`${u.name} 踩到软肋格子：Lirathe 从高处掉落并眩晕！`);
     window._weaknessTiles.delete(key);
     renderAll();
@@ -6531,16 +6588,6 @@ function checkWeaknessTiles(){
       checkWeaknessTilesForUnit(u);
     }
   }
-}
-
-// Unified function to check all special tiles after any unit movement
-function checkTilesAfterMove(u){
-  if(!u || u.hp<=0) return;
-  if(u.side === 'player'){
-    checkHealingTilesForUnit(u);
-    checkSpiderWebsForUnit(u);
-  }
-  checkWeaknessTilesForUnit(u);
 }
 
 function finishEnemyTurn(){
