@@ -5474,7 +5474,17 @@ function canLiratheHitTarget(lirathe, target){
 // Helper function to find next wall-adjacent move towards visible targets
 function findWallPathToVisibleTarget(lirathe){
   if(!lirathe || !lirathe._highGround) return null;
-  
+
+  // Determine how many steps we can spend on repositioning while still reserving a skill
+  let minSkillCost = 999;
+  if(lirathe.skillPool && lirathe.skillPool.length > 0){
+    for(const sk of lirathe.skillPool){
+      if(sk.cost < minSkillCost) minSkillCost = sk.cost;
+    }
+  }
+  const moveBudget = Math.max(0, enemySteps - minSkillCost);
+  if(moveBudget <= 0) return null;
+
   // Get all visible targets
   const visibleTargets = [];
   for(const id in units){
@@ -5483,66 +5493,125 @@ function findWallPathToVisibleTarget(lirathe){
       visibleTargets.push(u);
     }
   }
-  
+
   if(visibleTargets.length === 0) return null;
-  
-  // Get valid wall-adjacent moves
-  const adj = range_adjacent(lirathe);
-  const validMoves = [];
-  for(const pos of adj){
-    if(canLiratheMoveOnHighGround(lirathe, pos.r, pos.c)){
-      validMoves.push(pos);
-    }
-  }
-  
-  if(validMoves.length === 0) return null;
-  
-  // For each valid move, check if it gets us closer to being able to attack any visible target
-  let bestMove = null;
-  let bestScore = -999;
-  
-  for(const move of validMoves){
-    // Simulate being at this position
-    const oldR = lirathe.r, oldC = lirathe.c;
-    lirathe.r = move.r;
-    lirathe.c = move.c;
-    
-    // Check if we can attack any visible target from this position
-    let canAttackFromHere = false;
+
+  // BFS limited to wall/perimeter cells to find a reachable attack tile within budget
+  const queue = [];
+  const visited = new Map(); // key -> {r,c,steps,prev}
+  const startKey = `${lirathe.r},${lirathe.c}`;
+  queue.push({r: lirathe.r, c: lirathe.c, steps: 0});
+  visited.set(startKey, {r: lirathe.r, c: lirathe.c, steps: 0, prev: null});
+
+  const dirs = [
+    {dr: -1, dc: 0, dir: 'up'},
+    {dr: 1, dc: 0, dir: 'down'},
+    {dr: 0, dc: -1, dir: 'left'},
+    {dr: 0, dc: 1, dir: 'right'},
+  ];
+
+  let bestApproachKey = startKey;
+  let bestApproachDist = Infinity;
+
+  const originalR = lirathe.r;
+  const originalC = lirathe.c;
+
+  while(queue.length > 0){
+    const cur = queue.shift();
+    const curKey = `${cur.r},${cur.c}`;
+
+    // Evaluate attack possibility from this tile
+    lirathe.r = cur.r;
+    lirathe.c = cur.c;
     for(const target of visibleTargets){
       const hitInfo = canLiratheHitTarget(lirathe, target);
-      if(hitInfo){
-        canAttackFromHere = true;
-        break;
+      if(hitInfo && cur.steps <= moveBudget){
+        // Reconstruct first step toward this attack tile
+        lirathe.r = originalR;
+        lirathe.c = originalC;
+
+        let backKey = curKey;
+        let prev = visited.get(backKey).prev;
+        let lastKey = curKey;
+        while(prev){
+          lastKey = backKey;
+          backKey = prev;
+          prev = visited.get(backKey).prev;
+        }
+        const [nr, nc] = lastKey.split(',').map(Number);
+        const dr = nr - originalR;
+        const dc = nc - originalC;
+        let dir = null;
+        for(const d of dirs){
+          if(d.dr === dr && d.dc === dc){ dir = d.dir; break; }
+        }
+        return {r: nr, c: nc, dir};
       }
     }
-    
-    // If we can attack from here, prioritize this move highly
-    if(canAttackFromHere){
-      lirathe.r = oldR;
-      lirathe.c = oldC;
-      return move;
-    }
-    
-    // Otherwise, score based on distance to nearest visible target
-    let minDist = 999;
+
+    // Track best approach when no direct attack tile is found yet
+    let minDistToTarget = Infinity;
     for(const target of visibleTargets){
-      const dist = mdist({r: move.r, c: move.c}, target);
-      if(dist < minDist) minDist = dist;
+      const dist = mdist({r: cur.r, c: cur.c}, target);
+      if(dist < minDistToTarget) minDistToTarget = dist;
     }
-    
-    const score = -minDist; // Negative so closer is better
-    if(score > bestScore){
-      bestScore = score;
-      bestMove = move;
+    if(minDistToTarget < bestApproachDist){
+      bestApproachDist = minDistToTarget;
+      bestApproachKey = curKey;
     }
-    
-    // Restore position
-    lirathe.r = oldR;
-    lirathe.c = oldC;
+
+    // Restore Lirathe's position before expanding neighbors
+    lirathe.r = originalR;
+    lirathe.c = originalC;
+
+    // Expand neighbors within budget
+    if(cur.steps >= moveBudget) continue;
+    for(const d of dirs){
+      const nr = cur.r + d.dr;
+      const nc = cur.c + d.dc;
+      const nKey = `${nr},${nc}`;
+      if(visited.has(nKey)) continue;
+
+      // Restrict to perimeter or wall-adjacent cells
+      const onPerimeter = isPerimeterCell(nr, nc);
+      const wallHug = onPerimeter || isAdjacentToWall(nr, nc);
+      if(!wallHug) continue;
+
+      // Validate map bounds and occupancy
+      if(!clampCell(nr, nc)) continue;
+      const occ = getUnitAt(nr, nc);
+      if(occ && occ !== lirathe) continue;
+
+      visited.set(nKey, {r: nr, c: nc, steps: cur.steps + 1, prev: curKey});
+      queue.push({r: nr, c: nc, steps: cur.steps + 1});
+    }
   }
-  
-  return bestMove;
+
+  // Restore position before returning
+  lirathe.r = originalR;
+  lirathe.c = originalC;
+
+  // If no attack tile reachable, walk toward the closest approach along the wall ring
+  if(bestApproachKey !== startKey){
+    let backKey = bestApproachKey;
+    let prev = visited.get(backKey).prev;
+    let lastKey = bestApproachKey;
+    while(prev){
+      lastKey = backKey;
+      backKey = prev;
+      prev = visited.get(backKey).prev;
+    }
+    const [nr, nc] = lastKey.split(',').map(Number);
+    const dr = nr - originalR;
+    const dc = nc - originalC;
+    let dir = null;
+    for(const d of dirs){
+      if(d.dr === dr && d.dc === dc){ dir = d.dir; break; }
+    }
+    return {r: nr, c: nc, dir};
+  }
+
+  return null;
 }
 
 // Find the nearest map edge (wall) for Lirathe to teleport to
