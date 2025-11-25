@@ -2141,14 +2141,11 @@ function damageUnit(id, hpDmg, spDmg, reason, sourceId=null, opts={}){
     appendLog(`${u.name} 因 SP 崩溃眩晕承受双倍伤害！`);
   }
   
-  // Lirathe weakness vulnerability - DISABLED (weakness tiles no longer have effect)
-  /*
   if(u._weaknessVulnerable && (hpDmg>0 || spDmg>0)){
     hpDmg = Math.round(hpDmg * 1.5);
     spDmg = Math.round(spDmg * 1.5);
     appendLog(`${u.name} 因软肋承受额外伤害！`);
   }
-  */
 
   const prevHp = u.hp;
   let finalHp = Math.max(0, hpDmg);
@@ -2392,10 +2389,14 @@ function handleUnitDeath(u, source){
     // Switch BGM to Lirathe Phase 2 music
     if(bossBGM){
       bossBGM.pause();
+      bossBGM.currentTime = 0;
       bossBGM.src = 'Lirathe2.mp3';
       bossBGM.load();
+      bossBGM.loop = true;
       bossBGM.volume = 0.6;
-      bossBGM.play().catch(e => console.log('Lirathe Phase 2 BGM play failed:', e));
+      const playPhase2 = ()=> bossBGM.play().catch(e => console.log('Lirathe Phase 2 BGM play failed:', e));
+      bossBGM.addEventListener('canplay', playPhase2, {once:true});
+      playPhase2();
       appendLog('BGM 切换至 Lirathe 第二形态');
     }
     
@@ -3570,7 +3571,9 @@ async function lirathe_EscapeMove(u, payload){
   if(dir) setUnitFacing(u, dir);
   showTrail(prevR,prevC,r,c);
   appendLog(`${u.name} 又想逃？ 移动至 (${r},${c})`);
-  
+
+  checkTilesAfterMove(u);
+
   // Check adjacent enemies and deal 5HP
   const adj = range_adjacent(u);
   for(const p of adj){
@@ -3816,13 +3819,28 @@ async function lirathe_ChargeKill(u, desc){
   setUnitFacing(u, dir);
   const line = range_two_rows(u,dir);
   await telegraphThenImpact(line);
-  
+
   const seen=new Set();
   let newR=u.r, newC=u.c;
-  
+
   for(const c of line){
     const tu=getUnitAt(c.r,c.c);
-    if(tu && tu.side!=='enemy'){
+    // Only move to cells that are not at the absolute edge of the map
+    if((!tu || tu===u) && c.r > 1 && c.r < ROWS && c.c > 1 && c.c < COLS){
+      newR=c.r; newC=c.c;
+    }
+  }
+
+  if(newR!==u.r || newC!==u.c){
+    showTrail(u.r,u.c,newR,newC);
+    u.r=newR; u.c=newC;
+    checkTilesAfterMove(u);
+    renderAll();
+  }
+
+  for(const c of line){
+    const tu=getUnitAt(c.r,c.c);
+    if(tu && tu.side!=='enemy' && !seen.has(tu.id)){
       damageUnit(tu.id, 20, 10, `${u.name} 冲杀 ${tu.name}`, u.id, {skillName:'冲杀'});
       // Add corrosion
       if(!tu.status.corrosionStacks) tu.status.corrosionStacks = 0;
@@ -3830,17 +3848,8 @@ async function lirathe_ChargeKill(u, desc){
       updateStatusStacks(tu,'corrosionStacks',tu.status.corrosionStacks,{label:'腐蚀',type:'debuff'});
       seen.add(tu.id);
     }
-    // Only move to cells that are not at the absolute edge of the map
-    if((!tu || tu===u) && c.r > 1 && c.r < ROWS && c.c > 1 && c.c < COLS){ 
-      newR=c.r; newC=c.c; 
-    }
   }
-  
-  if(newR!==u.r || newC!==u.c){
-    showTrail(u.r,u.c,newR,newC);
-    u.r=newR; u.c=newC;
-  }
-  
+
   renderAll();
   unitActed(u);
 }
@@ -3969,7 +3978,7 @@ async function lirathe_CantFindWay(u){
 // Lirathe "I See You" skill - teleport to nearest wall
 async function lirathe_ISeeYou(u){
   // Find visible targets with "seen" or "exposed" status
-  const visibleTargets = [];
+  let visibleTargets = [];
   for(const id in units){
     const target = units[id];
     if(target && target.hp > 0 && target.side === 'player' && canLiratheSeeTarget(u, target)){
@@ -4002,58 +4011,92 @@ async function lirathe_ISeeYou(u){
       return unitActed(u);
     }
     
-    // Use BFS to find a path along walls toward the nearest visible target
-    const path = findWallPathBFS(u, visibleTargets);
-    
-    if(!path || path.length === 0){
-      // Fallback: Try to move along any available wall cell to avoid complete failure
-      const adj = range_adjacent(u);
-      const wallMoves = [];
-      for(const pos of adj){
-        if(canLiratheMoveOnHighGround(u, pos.r, pos.c)){
-          wallMoves.push(pos);
-        }
-      }
-      
-      if(wallMoves.length > 0){
-        // Move to a random available wall cell
-        const move = wallMoves[Math.floor(Math.random() * wallMoves.length)];
-        const oldR = u.r, oldC = u.c;
-        u.r = move.r;
-        u.c = move.c;
-        // Set facing direction based on movement or use existing direction
-        const faceDir = move.dir || cardinalDirFromDelta(move.r - oldR, move.c - oldC);
-        setUnitFacing(u, faceDir);
-        cameraFocusOnCell(u.r, u.c);
-        renderAll();
-        appendLog(`${u.name} 看见你了！沿墙移动 1 步探索（从 (${oldR},${oldC}) 到 (${u.r},${u.c})）`);
-        return unitActed(u);
-      } else {
-        appendLog(`${u.name} 看见你了：已在最优位置，保持当前姿态`);
-        return unitActed(u);
-      }
-    }
-    
-    // Move step-by-step along the wall path with animation
+    // Move step-by-step along the wall path with animation until we can attack or lose targets
     const oldR = u.r, oldC = u.c;
     appendLog(`${u.name} 看见你了！沿墙移动接近目标...`);
-    
-    for(let i = 0; i < path.length; i++){
-      const step = path[i];
+
+    while(enemySteps > 0){
+      // Refresh visible targets; stop if none remain
+      visibleTargets = visibleTargets.filter(t => t.hp > 0 && canLiratheSeeTarget(u, t));
+      if(visibleTargets.length === 0){
+        appendLog(`${u.name} 看见你了：目标消失，停止移动`);
+        break;
+      }
+
+      // Stop moving if we can already attack from current position
+      let canAttackFromHere = false;
+      for(const t of visibleTargets){
+        if(canLiratheHitTarget(u, t)){
+          canAttackFromHere = true;
+          break;
+        }
+      }
+      if(canAttackFromHere) break;
+
+      // Find a path within remaining steps toward any visible target
+      let path = findWallPathBFS(u, visibleTargets, enemySteps);
+      if(!path || path.length === 0){
+        // Fallback: choose the wall step that most reduces distance to the nearest perimeter point of any target
+        const wallMoves = getLiratheHighGroundSteps(u);
+        if(wallMoves.length === 0){
+          appendLog(`${u.name} 看见你了：沿墙无路可走`);
+          break;
+        }
+
+        const bestMove = wallMoves.reduce((best, move)=>{
+          // For each target, find the closest perimeter anchor (target itself if on edge, otherwise the nearest edge cell)
+          let bestDist = Infinity;
+          for(const t of visibleTargets){
+            const anchor = {
+              r: clampValue(t.r, 1, ROWS),
+              c: clampValue(t.c, 1, COLS)
+            };
+
+            if(!isPerimeterCell(anchor.r, anchor.c)){
+              // Project to the nearest perimeter row/col
+              const drTop = Math.abs(anchor.r - 1);
+              const drBottom = Math.abs(anchor.r - ROWS);
+              const dcLeft = Math.abs(anchor.c - 1);
+              const dcRight = Math.abs(anchor.c - COLS);
+
+              const minDelta = Math.min(drTop, drBottom, dcLeft, dcRight);
+              if(minDelta === drTop) anchor.r = 1;
+              else if(minDelta === drBottom) anchor.r = ROWS;
+              else if(minDelta === dcLeft) anchor.c = 1;
+              else anchor.c = COLS;
+            }
+
+            const dist = mdist(move, anchor);
+            if(dist < bestDist) bestDist = dist;
+          }
+
+          if(!best || bestDist < best.bestDist){
+            return {move, bestDist};
+          }
+          return best;
+        }, null);
+
+        path = bestMove ? [bestMove.move] : [wallMoves[Math.floor(Math.random() * wallMoves.length)]];
+      }
+
+      const step = path[0];
+      const faceDir = step.dir || cardinalDirFromDelta(step.r - u.r, step.c - u.c) || u.facing;
       u.r = step.r;
       u.c = step.c;
-      setUnitFacing(u, step.dir || u.facing);
-      
+      setUnitFacing(u, faceDir);
+      enemySteps = Math.max(0, enemySteps - 1);
+      updateStepsUI();
+
       // Show visual feedback for each step
       cameraFocusOnCell(u.r, u.c);
       renderAll();
-      
+
       // Pause between steps to show movement
       await aiAwait(200);
     }
-    
-    appendLog(`${u.name} 沿墙移动了 ${path.length} 步，从 (${oldR},${oldC}) 到 (${u.r},${u.c})`);
-    
+
+    appendLog(`${u.name} 沿墙移动，从 (${oldR},${oldC}) 到 (${u.r},${u.c})（剩余敌方步数 ${enemySteps}）`);
+
     renderAll();
     unitActed(u);
   } else {
@@ -4095,70 +4138,97 @@ async function lirathe_ISeeYou(u){
 }
 
 // BFS pathfinding along walls toward visible targets
-function findWallPathBFS(lirathe, visibleTargets){
+function findWallPathBFS(lirathe, visibleTargets, stepBudget){
   if(!lirathe || !lirathe._highGround || visibleTargets.length === 0) return null;
-  
+
+  // Helper: can we attack a target from this cell with the remaining step budget?
+  const canAttackWithBudget = (posR, posC, remainingSteps)=>{
+    if(remainingSteps < 0) return null;
+
+    const oldR = lirathe.r, oldC = lirathe.c;
+    lirathe.r = posR; lirathe.c = posC;
+
+    let result = null;
+    for(const sk of lirathe.skillPool || []){
+      if(sk.cost > remainingSteps) continue;
+
+      for(const dirName of Object.keys(DIRS)){
+        const cells = sk.rangeFn ? sk.rangeFn(lirathe, dirName, null) : [];
+        for(const cell of cells){
+          for(const target of visibleTargets){
+            if(target.hp > 0 && unitCoversCell(target, cell.r, cell.c)){
+              result = {skill: sk, dir: dirName, target};
+              break;
+            }
+          }
+          if(result) break;
+        }
+        if(result) break;
+      }
+      if(result) break;
+    }
+
+    lirathe.r = oldR; lirathe.c = oldC;
+    return result;
+  };
+
   // BFS to find shortest wall-adjacent path to any visible target
   const queue = [{r: lirathe.r, c: lirathe.c, path: []}];
   const visited = new Set();
   visited.add(`${lirathe.r},${lirathe.c}`);
-  
+
   let bestPath = null;
   let bestScore = -999;
-  const maxSteps = 10; // Limit search depth
-  
+  // Allow traversing the full perimeter loop (1,1)→(ROWS,1)→(ROWS,COLS)→(1,COLS)→(1,1)
+  const perimeterLength = (ROWS + COLS) * 2 - 4;
+  const defaultSteps = Math.max(12, perimeterLength);
+  const maxSteps = stepBudget !== undefined ? Math.max(1, stepBudget) : defaultSteps;
+
   while(queue.length > 0){
     const current = queue.shift();
-    
+
+    const stepsUsed = current.path.length;
+    const remainingSteps = maxSteps - stepsUsed;
+
     // If we've explored too far, continue to next node
-    if(current.path.length >= maxSteps) continue;
-    
+    if(stepsUsed > maxSteps) continue;
+
     // Check if we can attack any visible target from current position
     const oldR = lirathe.r, oldC = lirathe.c;
     lirathe.r = current.r;
     lirathe.c = current.c;
-    
-    let canAttack = false;
+    const attackInfo = canAttackWithBudget(current.r, current.c, remainingSteps);
+    lirathe.r = oldR; lirathe.c = oldC;
+
+    if(attackInfo){
+      // If we found an attacking position reachable within the step budget, use it immediately
+      return current.path;
+    }
+
+    // Track how close we are to the nearest target; prefer nodes that close the gap while leaving budget
     let closestDist = 999;
     for(const target of visibleTargets){
-      const hitInfo = canLiratheHitTarget(lirathe, target);
-      if(hitInfo){
-        canAttack = true;
-        // If we found an attacking position, return this path immediately
-        lirathe.r = oldR;
-        lirathe.c = oldC;
-        return current.path;
-      }
-      // Track closest distance to any target
       const dist = mdist({r: current.r, c: current.c}, target);
       if(dist < closestDist) closestDist = dist;
     }
-    
-    // Score based on distance to closest target
-    const score = -closestDist + current.path.length * 0.1; // Prefer shorter paths slightly
+
+    const score = -(closestDist) + Math.max(0, remainingSteps) * 0.15;
     if(score > bestScore){
       bestScore = score;
       bestPath = current.path.slice();
     }
-    
-    lirathe.r = oldR;
-    lirathe.c = oldC;
-    
+
     // Explore adjacent wall cells
     // Temporarily move to current position to get correct adjacent cells
     lirathe.r = current.r;
     lirathe.c = current.c;
-    const adj = range_adjacent(lirathe);
-    
-    for(const pos of adj){
+    for(const pos of getLiratheHighGroundSteps(lirathe)){
       const key = `${pos.r},${pos.c}`;
       if(visited.has(key)) continue;
-      
-      if(canLiratheMoveOnHighGround(lirathe, pos.r, pos.c)){
-        visited.add(key);
-        const newPath = current.path.concat([{r: pos.r, c: pos.c, dir: pos.dir}]);
-        queue.push({r: pos.r, c: pos.c, path: newPath});
-      }
+
+      visited.add(key);
+      const newPath = current.path.concat([{r: pos.r, c: pos.c, dir: pos.dir}]);
+      queue.push({r: pos.r, c: pos.c, path: newPath});
     }
     
     // Restore original position
@@ -5314,6 +5384,55 @@ function tryLiratheClimbing(u){
   return false;
 }
 
+// Force Lirathe back to high ground by either climbing immediately or relocating to the nearest open perimeter cell
+function forceLiratheReturnToHighGround(u, reason='重新登上高处'){
+  if(!u || u.id !== 'lirathe' || !u._transformed || u._highGround) return false;
+
+  // Try climbing in place if possible
+  if(tryLiratheClimbing(u)){
+    u._needsReclimb = false;
+    appendLog(`${u.name} ${reason}`);
+    return true;
+  }
+
+  // Otherwise, relocate to the nearest available perimeter cell
+  const dest = findNearestHighGroundCell(u);
+  if(dest){
+    const prevR = u.r, prevC = u.c;
+    u.r = dest.r; u.c = dest.c; u._highGround = true; u._needsReclimb = false;
+    appendLog(`${u.name} ${reason}：从 (${prevR},${prevC}) 移动到 (${dest.r},${dest.c})`);
+    showStatusFloat(u,'高处',{type:'buff'});
+    checkTilesAfterMove(u);
+    return true;
+  }
+
+  return false;
+}
+
+// Find the nearest perimeter position Lirathe can legally occupy (respecting 2x2 footprint)
+function findNearestHighGroundCell(u){
+  if(!u) return null;
+  let best = null;
+  let bestDist = Infinity;
+
+  for(let r=1; r<=ROWS; r++){
+    for(let c=1; c<=COLS; c++){
+      if(!isPerimeterCell(r,c)) continue;
+
+      const fits = u.size === 2 ? canPlace2x2(u, r, c) : clampCell(r, c);
+      if(!fits) continue;
+
+      const dist = mdist({r:u.r, c:u.c}, {r, c});
+      if(dist < bestDist){
+        bestDist = dist;
+        best = {r, c};
+      }
+    }
+  }
+
+  return best;
+}
+
 // Helper function to check if cell is adjacent to a wall
 function isAdjacentToWall(r, c){
   const directions = [{dr:-1,dc:0}, {dr:1,dc:0}, {dr:0,dc:-1}, {dr:0,dc:1}];
@@ -5322,6 +5441,10 @@ function isAdjacentToWall(r, c){
     const checkC = c + d.dc;
     // Map edges are also considered walls
     if(checkR < 1 || checkR > ROWS || checkC < 1 || checkC > COLS){
+      return true;
+    }
+    // Perimeter cells themselves count as adjacent walls for high-ground movement
+    if(isPerimeterCell(checkR, checkC)){
       return true;
     }
     if(isCoverCell(checkR, checkC)){
@@ -5343,22 +5466,49 @@ function isPerimeterCell(r, c){
 
 // Helper function to check if Lirathe can move to target position when on high ground
 function canLiratheMoveOnHighGround(u, targetR, targetC){
-  if(!u || u.id !== 'lirathe' || !u._transformed || !u._highGround) return false;
-  
+  if(!u || u.id !== 'lirathe' || !u._highGround) return false;
+
   // Must be adjacent to current position
   if(Math.abs(targetR - u.r) + Math.abs(targetC - u.c) !== 1) return false;
-  
-  // Target position must be on the perimeter (wall edge)
-  if(!isPerimeterCell(targetR, targetC)){
-    return false;
+
+  // Target footprint must keep hugging the wall (perimeter itself or the cells immediately inside it)
+  const size = u.size || 1;
+  const footprintCells = [];
+  for(let dr = 0; dr < size; dr++){
+    for(let dc = 0; dc < size; dc++){
+      footprintCells.push({r: targetR + dr, c: targetC + dc});
+    }
   }
-  
-  // Target position must be valid and unoccupied
-  if(!clampCell(targetR, targetC)) return false;
-  const occupant = getUnitAt(targetR, targetC);
-  if(occupant && occupant !== u) return false;
-  
+
+  // At least one cell of the footprint must touch or be next to a wall/perimeter
+  const hugsWall = footprintCells.some(cell => isPerimeterCell(cell.r, cell.c) || isAdjacentToWall(cell.r, cell.c));
+  if(!hugsWall) return false;
+
+  // Target position must be valid and unoccupied for the full footprint
+  if(size === 2){
+    if(!canPlace2x2(u, targetR, targetC)) return false;
+  } else {
+    if(!clampCell(targetR, targetC)) return false;
+    const occupant = getUnitAt(targetR, targetC);
+    if(occupant && occupant !== u) return false;
+  }
+
   return true;
+}
+
+// Helper: get one-step legal wall-hugging moves for Lirathe while on high ground
+function getLiratheHighGroundSteps(u){
+  if(!u || u.id !== 'lirathe' || !u._transformed || !u._highGround) return [];
+  const moves = [];
+  for(const [dir, d] of Object.entries(DIRS)){
+    const r = u.r + d.dr;
+    const c = u.c + d.dc;
+    if(Math.abs(d.dr) + Math.abs(d.dc) !== 1) continue;
+    if(canLiratheMoveOnHighGround(u, r, c)){
+      moves.push({r, c, dir});
+    }
+  }
+  return moves;
 }
 
 // Helper function to check if Lirathe can see a target (Darkness passive)
@@ -5405,7 +5555,17 @@ function canLiratheHitTarget(lirathe, target){
 // Helper function to find next wall-adjacent move towards visible targets
 function findWallPathToVisibleTarget(lirathe){
   if(!lirathe || !lirathe._highGround) return null;
-  
+
+  // Determine how many steps we can spend on repositioning while still reserving a skill
+  let minSkillCost = 999;
+  if(lirathe.skillPool && lirathe.skillPool.length > 0){
+    for(const sk of lirathe.skillPool){
+      if(sk.cost < minSkillCost) minSkillCost = sk.cost;
+    }
+  }
+  const moveBudget = Math.max(0, enemySteps - minSkillCost);
+  if(moveBudget <= 0) return null;
+
   // Get all visible targets
   const visibleTargets = [];
   for(const id in units){
@@ -5414,66 +5574,125 @@ function findWallPathToVisibleTarget(lirathe){
       visibleTargets.push(u);
     }
   }
-  
+
   if(visibleTargets.length === 0) return null;
-  
-  // Get valid wall-adjacent moves
-  const adj = range_adjacent(lirathe);
-  const validMoves = [];
-  for(const pos of adj){
-    if(canLiratheMoveOnHighGround(lirathe, pos.r, pos.c)){
-      validMoves.push(pos);
-    }
-  }
-  
-  if(validMoves.length === 0) return null;
-  
-  // For each valid move, check if it gets us closer to being able to attack any visible target
-  let bestMove = null;
-  let bestScore = -999;
-  
-  for(const move of validMoves){
-    // Simulate being at this position
-    const oldR = lirathe.r, oldC = lirathe.c;
-    lirathe.r = move.r;
-    lirathe.c = move.c;
-    
-    // Check if we can attack any visible target from this position
-    let canAttackFromHere = false;
+
+  // BFS limited to wall/perimeter cells to find a reachable attack tile within budget
+  const queue = [];
+  const visited = new Map(); // key -> {r,c,steps,prev}
+  const startKey = `${lirathe.r},${lirathe.c}`;
+  queue.push({r: lirathe.r, c: lirathe.c, steps: 0});
+  visited.set(startKey, {r: lirathe.r, c: lirathe.c, steps: 0, prev: null});
+
+  const dirs = [
+    {dr: -1, dc: 0, dir: 'up'},
+    {dr: 1, dc: 0, dir: 'down'},
+    {dr: 0, dc: -1, dir: 'left'},
+    {dr: 0, dc: 1, dir: 'right'},
+  ];
+
+  let bestApproachKey = startKey;
+  let bestApproachDist = Infinity;
+
+  const originalR = lirathe.r;
+  const originalC = lirathe.c;
+
+  while(queue.length > 0){
+    const cur = queue.shift();
+    const curKey = `${cur.r},${cur.c}`;
+
+    // Evaluate attack possibility from this tile
+    lirathe.r = cur.r;
+    lirathe.c = cur.c;
     for(const target of visibleTargets){
       const hitInfo = canLiratheHitTarget(lirathe, target);
-      if(hitInfo){
-        canAttackFromHere = true;
-        break;
+      if(hitInfo && cur.steps <= moveBudget){
+        // Reconstruct first step toward this attack tile
+        lirathe.r = originalR;
+        lirathe.c = originalC;
+
+        let backKey = curKey;
+        let prev = visited.get(backKey).prev;
+        let lastKey = curKey;
+        while(prev){
+          lastKey = backKey;
+          backKey = prev;
+          prev = visited.get(backKey).prev;
+        }
+        const [nr, nc] = lastKey.split(',').map(Number);
+        const dr = nr - originalR;
+        const dc = nc - originalC;
+        let dir = null;
+        for(const d of dirs){
+          if(d.dr === dr && d.dc === dc){ dir = d.dir; break; }
+        }
+        return {r: nr, c: nc, dir};
       }
     }
-    
-    // If we can attack from here, prioritize this move highly
-    if(canAttackFromHere){
-      lirathe.r = oldR;
-      lirathe.c = oldC;
-      return move;
-    }
-    
-    // Otherwise, score based on distance to nearest visible target
-    let minDist = 999;
+
+    // Track best approach when no direct attack tile is found yet
+    let minDistToTarget = Infinity;
     for(const target of visibleTargets){
-      const dist = mdist({r: move.r, c: move.c}, target);
-      if(dist < minDist) minDist = dist;
+      const dist = mdist({r: cur.r, c: cur.c}, target);
+      if(dist < minDistToTarget) minDistToTarget = dist;
     }
-    
-    const score = -minDist; // Negative so closer is better
-    if(score > bestScore){
-      bestScore = score;
-      bestMove = move;
+    if(minDistToTarget < bestApproachDist){
+      bestApproachDist = minDistToTarget;
+      bestApproachKey = curKey;
     }
-    
-    // Restore position
-    lirathe.r = oldR;
-    lirathe.c = oldC;
+
+    // Restore Lirathe's position before expanding neighbors
+    lirathe.r = originalR;
+    lirathe.c = originalC;
+
+    // Expand neighbors within budget
+    if(cur.steps >= moveBudget) continue;
+    for(const d of dirs){
+      const nr = cur.r + d.dr;
+      const nc = cur.c + d.dc;
+      const nKey = `${nr},${nc}`;
+      if(visited.has(nKey)) continue;
+
+      // Restrict to perimeter or wall-adjacent cells
+      const onPerimeter = isPerimeterCell(nr, nc);
+      const wallHug = onPerimeter || isAdjacentToWall(nr, nc);
+      if(!wallHug) continue;
+
+      // Validate map bounds and occupancy
+      if(!clampCell(nr, nc)) continue;
+      const occ = getUnitAt(nr, nc);
+      if(occ && occ !== lirathe) continue;
+
+      visited.set(nKey, {r: nr, c: nc, steps: cur.steps + 1, prev: curKey});
+      queue.push({r: nr, c: nc, steps: cur.steps + 1});
+    }
   }
-  
-  return bestMove;
+
+  // Restore position before returning
+  lirathe.r = originalR;
+  lirathe.c = originalC;
+
+  // If no attack tile reachable, walk toward the closest approach along the wall ring
+  if(bestApproachKey !== startKey){
+    let backKey = bestApproachKey;
+    let prev = visited.get(backKey).prev;
+    let lastKey = bestApproachKey;
+    while(prev){
+      lastKey = backKey;
+      backKey = prev;
+      prev = visited.get(backKey).prev;
+    }
+    const [nr, nc] = lastKey.split(',').map(Number);
+    const dr = nr - originalR;
+    const dc = nc - originalC;
+    let dir = null;
+    for(const d of dirs){
+      if(d.dr === dr && d.dc === dc){ dir = d.dir; break; }
+    }
+    return {r: nr, c: nc, dir};
+  }
+
+  return null;
 }
 
 // Find the nearest map edge (wall) for Lirathe to teleport to
@@ -5693,13 +5912,9 @@ function onCellClick(r,c){
   sel._moveDistanceThisTurn += moveDist;
   
   sel.r=r; sel.c=c;
-  
+
   // Check tiles immediately after movement
-  if(sel.side === 'player'){
-    checkHealingTilesForUnit(sel);
-    checkWeaknessTilesForUnit(sel);
-    checkSpiderWebsForUnit(sel);
-  }
+  checkTilesAfterMove(sel);
   
   if(sel.side==='player') playerSteps=Math.max(0, playerSteps-1); else enemySteps=Math.max(0, enemySteps-1);
   appendLog(`${sel.name} 移动到 (${r},${c})`);
@@ -5919,6 +6134,18 @@ function processUnitsTurnStart(side){
     u._tutorialSpImmuneUsed = false;
     applyAccessoryEffects(u, side);
 
+    // Lirathe: if previously knocked down by weakness tiles, immediately reclaim high ground
+    if(u.id==='lirathe' && u._transformed && u.passives.includes('liratheClimbing')){
+      if(!u._highGround && !u.status.stunned){
+        u._needsReclimb = true;
+      }
+      if(u._needsReclimb && !u.status.stunned){
+        if(forceLiratheReturnToHighGround(u, '优先重新登上高处')){
+          renderAll();
+        }
+      }
+    }
+
     const extraDraw = Math.max(0, u.turnsStarted);
     if(extraDraw>0) drawSkills(u, extraDraw);
 
@@ -6080,25 +6307,21 @@ function processUnitsTurnEnd(side){
       const next = Math.max(0, u.status.stunned-1);
       updateStatusStacks(u,'stunned', next, {label:'眩晕', type:'debuff'});
       appendLog(`${u.name} 的眩晕减少 1（剩余 ${u.status.stunned}）`);
-      // Weakness vulnerability cleanup - DISABLED (weakness tiles no longer have effect)
-      /*
       if(u.id === 'lirathe' && next === 0 && u._weaknessVulnerable){
         u._weaknessVulnerable = false;
         appendLog(`${u.name} 恢复正常`);
-        
+
         // If Lirathe is not on high ground after stun ends from weakness cell, try to climb back
         if(u._transformed && !u._highGround && u.passives.includes('liratheClimbing')){
-          // Attempt to climb back to high ground immediately
-          if(tryLiratheClimbing(u)){
-            appendLog(`${u.name} 眩晕结束后立即重新攀爬到高处！`);
+          u._needsReclimb = true;
+          if(forceLiratheReturnToHighGround(u, '眩晕结束后立即重新登上高处')){
             renderAll();
           } else {
-            // If can't climb immediately, mark for climbing priority in next turn
             appendLog(`${u.name} 眩晕结束，将在下回合优先攀爬回高处`);
+            u._needsReclimb = true;
           }
         }
       }
-      */
     }
     // Decrease immobilized stacks
     if(u.status.immobilizedStacks && u.status.immobilizedStacks > 0){
@@ -6264,6 +6487,12 @@ async function showLiratheDialog(){
 }
 
 function spawnConsciousnessfollower(){
+  for(const id in units){
+    if(id.startsWith('consciousness_') && units[id] && units[id].hp > 0){
+      return; // Only one bud on the field at a time
+    }
+  }
+
   const empty = [];
   for(let r=1;r<=ROWS;r++){
     for(let c=1;c<=COLS;c++){
@@ -6327,8 +6556,19 @@ function checkHealingTiles(){
   }
 }
 
+function checkTilesAfterMove(u){
+  if(!u) return;
+  if(u.side === 'player'){
+    checkHealingTilesForUnit(u);
+    checkSpiderWebsForUnit(u);
+  }
+  checkWeaknessTilesForUnit(u);
+}
+
 function createWeaknessTile(r, c){
   if(!window._weaknessTiles) window._weaknessTiles = new Set();
+  // Only keep a single weakness tile on the board
+  window._weaknessTiles.clear();
   window._weaknessTiles.add(`${r},${c}`);
   appendLog(`软肋格子出现在 (${r},${c})！`);
   renderAll();
@@ -6338,25 +6578,22 @@ function createWeaknessTile(r, c){
 }
 
 function checkWeaknessTilesForUnit(u){
-  // Weakness tiles are now disabled - no effect
-  return;
-  /*
   if(!window._weaknessTiles) return;
   const lirathe = units['lirathe'];
   if(!lirathe || lirathe.hp <= 0 || !lirathe._transformed) return;
-  if(!u || u.hp<=0 || u.side!=='player') return;
-  
+  if(!u || u.hp<=0) return;
+
   const key = `${u.r},${u.c}`;
   if(window._weaknessTiles.has(key) && lirathe._highGround){
     // Lirathe falls down
     lirathe._highGround = false;
     addStatusStacks(lirathe, 'stunned', 1, {label:'眩晕', type:'debuff'});
     lirathe._weaknessVulnerable = true; // Take 50% more damage
+    lirathe._needsReclimb = true; // Mark that Lirathe must climb back after the stun
     appendLog(`${u.name} 踩到软肋格子：Lirathe 从高处掉落并眩晕！`);
     window._weaknessTiles.delete(key);
     renderAll();
   }
-  */
 }
 
 function checkSpiderWebsForUnit(u){
@@ -6376,20 +6613,16 @@ function checkSpiderWebsForUnit(u){
 }
 
 function checkWeaknessTiles(){
-  // Weakness tiles are now disabled - no effect
-  return;
-  /*
   if(!window._weaknessTiles) return;
   const lirathe = units['lirathe'];
   if(!lirathe || lirathe.hp <= 0 || !lirathe._transformed) return;
-  
+
   for(const id in units){
     const u = units[id];
-    if(u && u.hp>0 && u.side==='player'){
+    if(u && u.hp>0){
       checkWeaknessTilesForUnit(u);
     }
   }
-  */
 }
 
 function finishEnemyTurn(){
@@ -6579,7 +6812,13 @@ function enemyLivingEnemies(){ return Object.values(units).filter(u=>u.side==='e
 function enemyLivingPlayers(){ return Object.values(units).filter(u=>u.side==='player' && u.hp>0); }
 
 function buildSkillCandidates(en){
-  const skillset = (en.skillPool && en.skillPool.length) ? en.skillPool : [];
+  let skillset = (en.skillPool && en.skillPool.length) ? en.skillPool : [];
+
+  // Safety: after变身如果手牌被清空，强制重新抽牌，避免“什么都不做”卡死
+  if(en.id === 'lirathe' && en._transformed && skillset.length === 0){
+    ensureStartHand(en);
+    skillset = (en.skillPool && en.skillPool.length) ? en.skillPool : [];
+  }
   const candidates=[];
   
   // Check if Lirathe can see any targets (Darkness passive)
