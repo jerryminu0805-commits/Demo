@@ -4052,8 +4052,7 @@ async function lirathe_ISeeYou(u){
       let path = findWallPathBFS(u, visibleTargets, enemySteps);
       if(!path || path.length === 0){
         // Fallback: choose the wall step that most reduces distance to the nearest perimeter point of any target
-        const adj = range_adjacent(u);
-        const wallMoves = adj.filter(pos => canLiratheMoveOnHighGround(u, pos.r, pos.c));
+        const wallMoves = getLiratheHighGroundSteps(u);
         if(wallMoves.length === 0){
           appendLog(`${u.name} 看见你了：沿墙无路可走`);
           break;
@@ -4239,17 +4238,13 @@ function findWallPathBFS(lirathe, visibleTargets, stepBudget){
     // Temporarily move to current position to get correct adjacent cells
     lirathe.r = current.r;
     lirathe.c = current.c;
-    const adj = range_adjacent(lirathe);
-    
-    for(const pos of adj){
+    for(const pos of getLiratheHighGroundSteps(lirathe)){
       const key = `${pos.r},${pos.c}`;
       if(visited.has(key)) continue;
-      
-      if(canLiratheMoveOnHighGround(lirathe, pos.r, pos.c)){
-        visited.add(key);
-        const newPath = current.path.concat([{r: pos.r, c: pos.c, dir: pos.dir}]);
-        queue.push({r: pos.r, c: pos.c, path: newPath});
-      }
+
+      visited.add(key);
+      const newPath = current.path.concat([{r: pos.r, c: pos.c, dir: pos.dir}]);
+      queue.push({r: pos.r, c: pos.c, path: newPath});
     }
     
     // Restore original position
@@ -5498,13 +5493,30 @@ function canLiratheMoveOnHighGround(u, targetR, targetC){
   if(!onPerimeter && !besidePerimeter){
     return false;
   }
-  
+
   // Target position must be valid and unoccupied
-  if(!clampCell(targetR, targetC)) return false;
+  if(u.size === 2){
+    if(!(clampCell(targetR, targetC) && clampCell(targetR + 1, targetC + 1))) return false;
+  } else if(!clampCell(targetR, targetC)) return false;
   const occupant = getUnitAt(targetR, targetC);
   if(occupant && occupant !== u) return false;
-  
+
   return true;
+}
+
+// Helper: get one-step legal wall-hugging moves for Lirathe while on high ground
+function getLiratheHighGroundSteps(u){
+  if(!u || u.id !== 'lirathe' || !u._transformed || !u._highGround) return [];
+  const moves = [];
+  for(const [dir, d] of Object.entries(DIRS)){
+    const r = u.r + d.dr;
+    const c = u.c + d.dc;
+    if(Math.abs(d.dr) + Math.abs(d.dc) !== 1) continue;
+    if(canLiratheMoveOnHighGround(u, r, c)){
+      moves.push({r, c, dir});
+    }
+  }
+  return moves;
 }
 
 // Helper function to check if Lirathe can see a target (Darkness passive)
@@ -6483,6 +6495,12 @@ async function showLiratheDialog(){
 }
 
 function spawnConsciousnessfollower(){
+  for(const id in units){
+    if(id.startsWith('consciousness_') && units[id] && units[id].hp > 0){
+      return; // Only one bud on the field at a time
+    }
+  }
+
   const empty = [];
   for(let r=1;r<=ROWS;r++){
     for(let c=1;c<=COLS;c++){
@@ -6557,6 +6575,8 @@ function checkTilesAfterMove(u){
 
 function createWeaknessTile(r, c){
   if(!window._weaknessTiles) window._weaknessTiles = new Set();
+  // Only keep a single weakness tile on the board
+  window._weaknessTiles.clear();
   window._weaknessTiles.add(`${r},${c}`);
   appendLog(`软肋格子出现在 (${r},${c})！`);
   renderAll();
